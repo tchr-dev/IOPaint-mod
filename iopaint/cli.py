@@ -1,3 +1,4 @@
+import os
 import webbrowser
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -143,6 +144,22 @@ def start(
     gfpgan_device: Device = Option(Device.cpu),
     enable_restoreformer: bool = Option(False),
     restoreformer_device: Device = Option(Device.cpu),
+    # OpenAI-compatible API options
+    openai_api_key: Optional[str] = Option(
+        None,
+        envvar="AIE_OPENAI_API_KEY",
+        help="API key for OpenAI-compatible image API. Required for openai-compat model.",
+    ),
+    openai_base_url: Optional[str] = Option(
+        None,
+        envvar="AIE_OPENAI_BASE_URL",
+        help="Base URL for OpenAI-compatible API. Default: https://api.openai.com/v1",
+    ),
+    openai_model: Optional[str] = Option(
+        None,
+        envvar="AIE_OPENAI_MODEL",
+        help="Default model for OpenAI image operations. Default: gpt-image-1",
+    ),
 ):
     dump_environment_info()
     device = check_device(device)
@@ -175,6 +192,14 @@ def start(
     if local_files_only:
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
         os.environ["HF_HUB_OFFLINE"] = "1"
+
+    # Set OpenAI environment variables from CLI flags if provided
+    if openai_api_key:
+        os.environ["AIE_OPENAI_API_KEY"] = openai_api_key
+    if openai_base_url:
+        os.environ["AIE_OPENAI_BASE_URL"] = openai_base_url
+    if openai_model:
+        os.environ["AIE_OPENAI_MODEL"] = openai_model
 
     from iopaint.download import cli_download_model, scan_models
 

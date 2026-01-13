@@ -26,6 +26,7 @@ class ModelType(str, Enum):
     DIFFUSERS_SDXL = "diffusers_sdxl"
     DIFFUSERS_SDXL_INPAINT = "diffusers_sdxl_inpaint"
     DIFFUSERS_OTHER = "diffusers_other"
+    OPENAI_COMPAT = "openai_compat"  # OpenAI-compatible API (gpt-image-1, dall-e-3, etc.)
 
 
 class ModelInfo(BaseModel):
@@ -42,6 +43,7 @@ class ModelInfo(BaseModel):
             ModelType.DIFFUSERS_SDXL,
             ModelType.DIFFUSERS_SD_INPAINT,
             ModelType.DIFFUSERS_SDXL_INPAINT,
+            ModelType.OPENAI_COMPAT,
         ] or self.name in [
             INSTRUCT_PIX2PIX_NAME,
             KANDINSKY22_NAME,

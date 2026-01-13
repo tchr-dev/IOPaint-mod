@@ -15,6 +15,9 @@ from .sd import SD15, SD2, Anything4, RealisticVision14, SD
 from .sdxl import SDXL
 from .zits import ZITS
 
+# OpenAI-compatible API model
+from iopaint.openai_compat.model_adapter import OpenAICompatModel
+
 models = {
     LaMa.name: LaMa,
     AnimeLaMa.name: AnimeLaMa,
@@ -35,4 +38,6 @@ models = {
     SDXL.name: SDXL,
     PowerPaint.name: PowerPaint,
     AnyText.name: AnyText,
+    # OpenAI-compatible API
+    OpenAICompatModel.name: OpenAICompatModel,
 }

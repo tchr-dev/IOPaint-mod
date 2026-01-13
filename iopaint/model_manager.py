@@ -13,6 +13,9 @@ from iopaint.model.power_paint.power_paint_v2 import PowerPaintV2
 from iopaint.model.utils import torch_gc, is_local_files_only
 from iopaint.schema import InpaintRequest, ModelInfo, ModelType
 
+# OpenAI-compatible API constants
+OPENAI_COMPAT_NAME = "openai-compat"
+
 
 class ModelManager:
     def __init__(self, name: str, device: torch.device, **kwargs):
@@ -112,6 +115,15 @@ class ModelManager:
 
     def scan_models(self) -> List[ModelInfo]:
         available_models = scan_models()
+
+        # Always add OpenAI-compatible model (API-based, doesn't need local files)
+        openai_model = ModelInfo(
+            name=OPENAI_COMPAT_NAME,
+            path="openai-api",  # Virtual path, no local files
+            model_type=ModelType.OPENAI_COMPAT,
+        )
+        available_models.append(openai_model)
+
         self.available_models = {it.name: it for it in available_models}
         return available_models
 

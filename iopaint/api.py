@@ -63,10 +63,23 @@ from iopaint.schema import (
     RealESRGANModel,
 )
 
+# OpenAI-compatible API imports
+from iopaint.openai_compat.config import OpenAIConfig
+from iopaint.openai_compat.client import OpenAICompatClient
+from iopaint.openai_compat.models import (
+    GenerateImageRequest as OpenAIGenerateRequest,
+    RefinePromptRequest as OpenAIRefineRequest,
+    RefinePromptResponse,
+)
+from iopaint.openai_compat.errors import OpenAIError
+
 CURRENT_DIR = Path(__file__).parent.absolute().resolve()
 WEB_APP_DIR = CURRENT_DIR / "web_app"
 
-
+# Fallback for running from source repo (where web_app is at repo root)
+if not WEB_APP_DIR.is_dir():
+    WEB_APP_DIR = CURRENT_DIR.parent / "web_app"   # ../web_app
+    
 def api_middleware(app: FastAPI):
     rich_available = False
     try:
@@ -157,6 +170,13 @@ class Api:
         self.plugins = self._build_plugins()
         self.model_manager = self._build_model_manager()
 
+        # Initialize OpenAI-compatible client if configured
+        self.openai_config = OpenAIConfig()
+        self.openai_client: Optional[OpenAICompatClient] = None
+        if self.openai_config.is_enabled:
+            self.openai_client = OpenAICompatClient(self.openai_config)
+            logger.info(f"OpenAI-compatible client enabled: {self.openai_config.base_url}")
+
         # fmt: off
         self.add_api_route("/api/v1/gen-info", self.api_geninfo, methods=["POST"], response_model=GenInfoResponse)
         self.add_api_route("/api/v1/server-config", self.api_server_config, methods=["GET"],
@@ -171,6 +191,13 @@ class Api:
         self.add_api_route("/api/v1/samplers", self.api_samplers, methods=["GET"])
         self.add_api_route("/api/v1/adjust_mask", self.api_adjust_mask, methods=["POST"])
         self.add_api_route("/api/v1/save_image", self.api_save_image, methods=["POST"])
+
+        # OpenAI-compatible API routes
+        self.add_api_route("/api/v1/openai/models", self.api_openai_list_models, methods=["GET"])
+        self.add_api_route("/api/v1/openai/refine", self.api_openai_refine_prompt, methods=["POST"],
+                           response_model=RefinePromptResponse)
+        self.add_api_route("/api/v1/openai/generate", self.api_openai_generate, methods=["POST"])
+
         self.app.mount("/", StaticFiles(directory=WEB_APP_DIR, html=True), name="assets")
         # fmt: on
 
@@ -354,6 +381,48 @@ class Api:
         mask, _, _, _ = decode_base64_to_image(req.mask, gray=True)
         mask = adjust_mask(mask, req.kernel_size, req.operate)
         return Response(content=numpy_to_bytes(mask, "png"), media_type="image/png")
+
+    # =========================================================================
+    # OpenAI-compatible API endpoints
+    # =========================================================================
+
+    def api_openai_list_models(self):
+        """List available models from OpenAI-compatible API."""
+        if not self.openai_client:
+            raise HTTPException(
+                status_code=503,
+                detail="OpenAI client not configured. Set AIE_OPENAI_API_KEY environment variable.",
+            )
+        try:
+            models = self.openai_client.list_models()
+            return {"models": [m.model_dump() for m in models]}
+        except OpenAIError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def api_openai_refine_prompt(self, req: OpenAIRefineRequest) -> RefinePromptResponse:
+        """Refine/expand a prompt using cheap LLM call before expensive image generation."""
+        if not self.openai_client:
+            raise HTTPException(
+                status_code=503,
+                detail="OpenAI client not configured. Set AIE_OPENAI_API_KEY environment variable.",
+            )
+        try:
+            return self.openai_client.refine_prompt(req)
+        except OpenAIError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def api_openai_generate(self, req: OpenAIGenerateRequest):
+        """Generate image from text prompt using OpenAI-compatible API."""
+        if not self.openai_client:
+            raise HTTPException(
+                status_code=503,
+                detail="OpenAI client not configured. Set AIE_OPENAI_API_KEY environment variable.",
+            )
+        try:
+            image_bytes = self.openai_client.generate_image(req)
+            return Response(content=image_bytes, media_type="image/png")
+        except OpenAIError as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
     def launch(self):
         self.app.include_router(self.router)
