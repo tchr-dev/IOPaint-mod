@@ -73,6 +73,20 @@ from iopaint.openai_compat.models import (
 )
 from iopaint.openai_compat.errors import OpenAIError
 
+# Budget safety imports
+from iopaint.budget import (
+    BudgetConfig,
+    BudgetStorage,
+    BudgetGuard,
+    BudgetStatusResponse,
+    BudgetError,
+    BudgetExceededError,
+    RateLimitedError,
+    CostEstimator,
+    CostEstimateRequest,
+    CostEstimateResponse,
+)
+
 CURRENT_DIR = Path(__file__).parent.absolute().resolve()
 WEB_APP_DIR = CURRENT_DIR / "web_app"
 
@@ -177,6 +191,13 @@ class Api:
             self.openai_client = OpenAICompatClient(self.openai_config)
             logger.info(f"OpenAI-compatible client enabled: {self.openai_config.base_url}")
 
+        # Initialize budget safety system
+        self.budget_config = BudgetConfig()
+        self.budget_storage = BudgetStorage(self.budget_config)
+        self.budget_guard = BudgetGuard(self.budget_config, self.budget_storage)
+        self.cost_estimator = CostEstimator()
+        logger.info(f"Budget safety enabled: {self.budget_config}")
+
         # fmt: off
         self.add_api_route("/api/v1/gen-info", self.api_geninfo, methods=["POST"], response_model=GenInfoResponse)
         self.add_api_route("/api/v1/server-config", self.api_server_config, methods=["GET"],
@@ -197,6 +218,12 @@ class Api:
         self.add_api_route("/api/v1/openai/refine", self.api_openai_refine_prompt, methods=["POST"],
                            response_model=RefinePromptResponse)
         self.add_api_route("/api/v1/openai/generate", self.api_openai_generate, methods=["POST"])
+
+        # Budget safety API routes
+        self.add_api_route("/api/v1/budget/status", self.api_budget_status, methods=["GET"],
+                           response_model=BudgetStatusResponse)
+        self.add_api_route("/api/v1/budget/estimate", self.api_budget_estimate, methods=["POST"],
+                           response_model=CostEstimateResponse)
 
         self.app.mount("/", StaticFiles(directory=WEB_APP_DIR, html=True), name="assets")
         # fmt: on
@@ -423,6 +450,57 @@ class Api:
             return Response(content=image_bytes, media_type="image/png")
         except OpenAIError as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+    # =========================================================================
+    # Budget Safety API endpoints
+    # =========================================================================
+
+    def _get_session_id(self, request: Request) -> str:
+        """Extract session ID from request headers or generate fallback.
+
+        Session ID precedence:
+        1. X-Session-Id header
+        2. session_id query parameter
+        3. Fallback: hash of client IP + User-Agent
+        """
+        import hashlib
+
+        # Try header first
+        session_id = request.headers.get("X-Session-Id")
+        if session_id:
+            return session_id
+
+        # Try query parameter
+        session_id = request.query_params.get("session_id")
+        if session_id:
+            return session_id
+
+        # Fallback: pseudo-session from client fingerprint
+        client_host = request.client.host if request.client else "unknown"
+        user_agent = request.headers.get("user-agent", "")
+        fingerprint = f"{client_host}:{user_agent}"
+        return hashlib.md5(fingerprint.encode()).hexdigest()[:16]
+
+    def api_budget_status(self, request: Request) -> BudgetStatusResponse:
+        """Get current budget status including daily/monthly/session usage."""
+        session_id = self._get_session_id(request)
+        return self.budget_guard.get_status(session_id)
+
+    def api_budget_estimate(self, req: CostEstimateRequest) -> CostEstimateResponse:
+        """Estimate cost for an operation before executing it."""
+        model = req.model or (self.openai_config.model if self.openai_config else "gpt-image-1")
+        cost, tier, warning = self.cost_estimator.estimate_with_tier(
+            model=model,
+            size=req.size or "1024x1024",
+            quality=req.quality or "standard",
+            n=req.n or 1,
+            operation=req.operation,
+        )
+        return CostEstimateResponse(
+            estimated_cost_usd=cost,
+            cost_tier=tier,
+            warning=warning,
+        )
 
     def launch(self):
         self.app.include_router(self.router)

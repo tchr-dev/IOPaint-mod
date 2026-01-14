@@ -14,8 +14,42 @@ export const API_ENDPOINT = import.meta.env.DEV
   ? import.meta.env.VITE_BACKEND + "/api/v1"
   : "/api/v1"
 
+// Session ID management for budget tracking
+const SESSION_STORAGE_KEY = "iopaint_session_id"
+
+function generateUUID(): string {
+  // Use crypto.randomUUID if available, fallback to manual generation
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  // Fallback for older browsers
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === "x" ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+export function getOrCreateSessionId(): string {
+  let sessionId = localStorage.getItem(SESSION_STORAGE_KEY)
+  if (!sessionId) {
+    sessionId = generateUUID()
+    localStorage.setItem(SESSION_STORAGE_KEY, sessionId)
+  }
+  return sessionId
+}
+
+export function resetSessionId(): string {
+  const newSessionId = generateUUID()
+  localStorage.setItem(SESSION_STORAGE_KEY, newSessionId)
+  return newSessionId
+}
+
 const api = axios.create({
   baseURL: API_ENDPOINT,
+  headers: {
+    "X-Session-Id": getOrCreateSessionId(),
+  },
 })
 
 const throwErrors = async (res: any): Promise<never> => {
@@ -43,6 +77,7 @@ export default async function inpaint(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "X-Session-Id": getOrCreateSessionId(),
     },
     body: JSON.stringify({
       image: imageBase64,
@@ -137,6 +172,7 @@ export async function runPlugin(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "X-Session-Id": getOrCreateSessionId(),
     },
     body: JSON.stringify({
       name,
@@ -236,6 +272,7 @@ export async function postAdjustMask(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "X-Session-Id": getOrCreateSessionId(),
     },
     body: JSON.stringify({
       mask: maskBase64,
@@ -248,4 +285,47 @@ export async function postAdjustMask(
     return blob
   }
   throw await throwErrors(res)
+}
+
+// Budget Safety API types
+export interface BudgetUsage {
+  spent_usd: number
+  remaining_usd: number
+  cap_usd: number
+  is_unlimited: boolean
+}
+
+export interface BudgetStatusResponse {
+  daily: BudgetUsage
+  monthly: BudgetUsage
+  session: BudgetUsage
+  status: "ok" | "warning" | "blocked"
+  message: string | null
+}
+
+export interface CostEstimateRequest {
+  operation: "generate" | "edit" | "variation" | "refine"
+  model: string
+  size?: string
+  quality?: string
+  n?: number
+}
+
+export interface CostEstimateResponse {
+  estimated_cost_usd: number
+  cost_tier: "low" | "medium" | "high"
+  warning: string | null
+}
+
+// Budget Safety API functions
+export async function getBudgetStatus(): Promise<BudgetStatusResponse> {
+  const res = await api.get("/budget/status")
+  return res.data
+}
+
+export async function estimateCost(
+  params: CostEstimateRequest
+): Promise<CostEstimateResponse> {
+  const res = await api.post("/budget/estimate", params)
+  return res.data
 }

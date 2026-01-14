@@ -160,6 +160,32 @@ def start(
         envvar="AIE_OPENAI_MODEL",
         help="Default model for OpenAI image operations. Default: gpt-image-1",
     ),
+    # Budget safety options
+    budget_daily_cap: Optional[float] = Option(
+        None,
+        envvar="AIE_BUDGET_DAILY_CAP",
+        help="Daily budget cap in USD. 0 = unlimited. Default: 10.0",
+    ),
+    budget_monthly_cap: Optional[float] = Option(
+        None,
+        envvar="AIE_BUDGET_MONTHLY_CAP",
+        help="Monthly budget cap in USD. 0 = unlimited. Default: 100.0",
+    ),
+    budget_session_cap: Optional[float] = Option(
+        None,
+        envvar="AIE_BUDGET_SESSION_CAP",
+        help="Per-session budget cap in USD. 0 = unlimited. Default: 5.0",
+    ),
+    budget_rate_limit: Optional[int] = Option(
+        None,
+        envvar="AIE_RATE_LIMIT_SECONDS",
+        help="Min seconds between expensive operations. Default: 10",
+    ),
+    budget_data_dir: Optional[Path] = Option(
+        None,
+        envvar="AIE_DATA_DIR",
+        help="Data directory for budget DB and cache. Default: ~/.iopaint/data",
+    ),
 ):
     dump_environment_info()
     device = check_device(device)
@@ -200,6 +226,18 @@ def start(
         os.environ["AIE_OPENAI_BASE_URL"] = openai_base_url
     if openai_model:
         os.environ["AIE_OPENAI_MODEL"] = openai_model
+
+    # Set budget environment variables from CLI flags if provided
+    if budget_daily_cap is not None:
+        os.environ["AIE_BUDGET_DAILY_CAP"] = str(budget_daily_cap)
+    if budget_monthly_cap is not None:
+        os.environ["AIE_BUDGET_MONTHLY_CAP"] = str(budget_monthly_cap)
+    if budget_session_cap is not None:
+        os.environ["AIE_BUDGET_SESSION_CAP"] = str(budget_session_cap)
+    if budget_rate_limit is not None:
+        os.environ["AIE_RATE_LIMIT_SECONDS"] = str(budget_rate_limit)
+    if budget_data_dir is not None:
+        os.environ["AIE_DATA_DIR"] = str(budget_data_dir.expanduser().absolute())
 
     from iopaint.download import cli_download_model, scan_models
 
