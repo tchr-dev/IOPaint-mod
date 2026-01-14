@@ -6,7 +6,7 @@ import { useImage } from "@/hooks/useImage"
 
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover"
 import PromptInput from "./PromptInput"
-import { RotateCw, Image, Upload } from "lucide-react"
+import { RotateCw, Image, Upload, Sparkles } from "lucide-react"
 import FileManager, { MASK_TAB } from "./FileManager"
 import { getMediaBlob, getMediaFile } from "@/lib/api"
 import { useStore } from "@/lib/states"
@@ -14,6 +14,8 @@ import SettingsDialog from "./Settings"
 import { cn, fileToImage } from "@/lib/utils"
 import Coffee from "./Coffee"
 import { useToast } from "./ui/use-toast"
+import { Switch } from "./ui/switch"
+import { Label } from "./ui/label"
 
 const Header = () => {
   const [
@@ -32,6 +34,10 @@ const Header = () => {
     imageHeight,
     imageWidth,
     handleFileManagerMaskSelect,
+    // OpenAI mode (Epic 4)
+    isOpenAIMode,
+    setOpenAIMode,
+    isOpenAIGenerating,
   ] = useStore((state) => [
     state.file,
     state.customMask,
@@ -48,6 +54,10 @@ const Header = () => {
     state.imageHeight,
     state.imageWidth,
     state.handleFileManagerMaskSelect,
+    // OpenAI mode (Epic 4)
+    state.openAIState.isOpenAIMode,
+    state.setOpenAIMode,
+    state.openAIState.isOpenAIGenerating,
   ])
 
   const { toast } = useToast()
@@ -190,7 +200,41 @@ const Header = () => {
         )}
       </div>
 
-      {model.need_prompt ? <PromptInput /> : <></>}
+      {/* Mode Toggle + Prompt Input */}
+      <div className="flex items-center gap-4">
+        {/* OpenAI Mode Toggle */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border">
+          <Label
+            htmlFor="openai-mode"
+            className={cn(
+              "text-xs font-medium cursor-pointer transition-colors",
+              !isOpenAIMode ? "text-foreground" : "text-muted-foreground"
+            )}
+          >
+            Local
+          </Label>
+          <Switch
+            id="openai-mode"
+            checked={isOpenAIMode}
+            onCheckedChange={setOpenAIMode}
+            disabled={isInpainting || isOpenAIGenerating}
+            className="data-[state=checked]:bg-primary"
+          />
+          <Label
+            htmlFor="openai-mode"
+            className={cn(
+              "text-xs font-medium cursor-pointer transition-colors flex items-center gap-1",
+              isOpenAIMode ? "text-foreground" : "text-muted-foreground"
+            )}
+          >
+            <Sparkles className="h-3 w-3" />
+            OpenAI
+          </Label>
+        </div>
+
+        {/* Show local prompt input only when NOT in OpenAI mode and model needs it */}
+        {!isOpenAIMode && model.need_prompt ? <PromptInput /> : <></>}
+      </div>
 
       <div className="flex gap-1">
         <Coffee />

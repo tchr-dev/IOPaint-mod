@@ -18,6 +18,15 @@ import {
   Size,
   SortBy,
   SortOrder,
+  // OpenAI types (Epic 4)
+  GenerationPreset,
+  PresetConfig,
+  CostEstimate,
+  BudgetStatus,
+  GenerationJob,
+  OpenAIModelInfo,
+  PRESET_CONFIGS,
+  GenerateImageRequest,
 } from "./types"
 import {
   BRUSH_COLOR,
@@ -36,6 +45,16 @@ import {
   srcToFile,
 } from "./utils"
 import inpaint, { getGenInfo, postAdjustMask, runPlugin } from "./api"
+import {
+  listOpenAIModels,
+  refinePrompt as apiRefinePrompt,
+  generateImageAsDataUrl,
+  editImageAsDataUrl,
+  estimateGenerationCost,
+  getOpenAIBudgetStatus,
+  createThumbnail,
+  generateFingerprint,
+} from "./openai-api"
 import { toast } from "@/components/ui/use-toast"
 
 type FileManagerState = {
@@ -138,6 +157,102 @@ type EditorState = {
   redoLineGroups: LineGroup[]
 }
 
+// ============================================================================
+// OpenAI State (Epic 4)
+// ============================================================================
+
+/**
+ * OpenAI generation state for the "Refine → Generate/Edit" workflow.
+ * Manages the entire flow from user intent to final generation.
+ */
+type OpenAIState = {
+  // Mode toggle - switches between local models and OpenAI API
+  isOpenAIMode: boolean
+
+  // Available models from OpenAI API
+  openAIModels: OpenAIModelInfo[]
+  selectedOpenAIModel: string
+
+  // Intent → Refine → Final prompt flow
+  openAIIntent: string
+  isRefiningPrompt: boolean
+  openAIRefinedPrompt: string
+  openAINegativePrompt: string
+
+  // Preset selection
+  selectedPreset: GenerationPreset
+  customPresetConfig: PresetConfig
+
+  // Generation execution state
+  isOpenAIGenerating: boolean
+  currentJobId: string | null
+  openAIGenerationProgress: number
+
+  // Cost awareness
+  currentCostEstimate: CostEstimate | null
+  showCostWarningModal: boolean
+  pendingGenerationRequest: GenerateImageRequest | null
+
+  // History/Gallery (E4.3)
+  generationHistory: GenerationJob[]
+  historyFilter: "all" | "succeeded" | "failed"
+
+  // Budget status cache
+  budgetStatus: BudgetStatus | null
+
+  // Edit mode (E4.2)
+  isOpenAIEditMode: boolean
+  editSourceImageDataUrl: string | null
+}
+
+/**
+ * OpenAI actions for managing generation workflow.
+ */
+type OpenAIAction = {
+  // Mode toggle
+  setOpenAIMode: (enabled: boolean) => void
+  setOpenAIEditMode: (enabled: boolean) => void
+
+  // Model management
+  fetchOpenAIModels: () => Promise<void>
+  setSelectedOpenAIModel: (modelId: string) => void
+
+  // Intent/Prompt flow
+  setOpenAIIntent: (intent: string) => void
+  refinePrompt: () => Promise<void>
+  setOpenAIRefinedPrompt: (prompt: string) => void
+  setOpenAINegativePrompt: (prompt: string) => void
+
+  // Presets
+  setSelectedPreset: (preset: GenerationPreset) => void
+  updateCustomPresetConfig: (config: Partial<PresetConfig>) => void
+  getActivePresetConfig: () => PresetConfig
+
+  // Cost estimation
+  updateCostEstimate: () => Promise<void>
+
+  // Generation execution
+  requestOpenAIGeneration: () => Promise<void>
+  confirmOpenAIGeneration: () => Promise<void>
+  cancelPendingGeneration: () => void
+
+  // History management
+  addToHistory: (job: GenerationJob) => void
+  updateHistoryJob: (id: string, updates: Partial<GenerationJob>) => void
+  removeFromHistory: (id: string) => void
+  clearHistory: () => void
+  rerunJob: (jobId: string) => Promise<void>
+  copyJobPrompt: (jobId: string) => void
+  setHistoryFilter: (filter: "all" | "succeeded" | "failed") => void
+
+  // Budget
+  refreshBudgetStatus: () => Promise<void>
+
+  // Edit flow
+  setEditSourceImage: (dataUrl: string | null) => void
+  runOpenAIEdit: () => Promise<void>
+}
+
 type AppState = {
   file: File | null
   paintByExampleFile: File | null
@@ -161,6 +276,9 @@ type AppState = {
   serverConfig: ServerConfig
 
   settings: Settings
+
+  // OpenAI State (Epic 4) - embedded directly for simpler access
+  openAIState: OpenAIState
 }
 
 type AppAction = {
@@ -234,7 +352,7 @@ type AppAction = {
 
   adjustMask: (operate: AdjustMaskOperate) => Promise<void>
   clearMask: () => void
-}
+} & OpenAIAction // Include all OpenAI actions
 
 const defaultValues: AppState = {
   file: null,
@@ -361,6 +479,30 @@ const defaultValues: AppState = {
     enablePowerPaintV2: false,
     powerpaintTask: PowerPaintTask.text_guided,
     adjustMaskKernelSize: 12,
+  },
+
+  // OpenAI State defaults (Epic 4)
+  openAIState: {
+    isOpenAIMode: false,
+    openAIModels: [],
+    selectedOpenAIModel: "gpt-image-1",
+    openAIIntent: "",
+    isRefiningPrompt: false,
+    openAIRefinedPrompt: "",
+    openAINegativePrompt: "",
+    selectedPreset: GenerationPreset.DRAFT,
+    customPresetConfig: { ...PRESET_CONFIGS[GenerationPreset.CUSTOM] },
+    isOpenAIGenerating: false,
+    currentJobId: null,
+    openAIGenerationProgress: 0,
+    currentCostEstimate: null,
+    showCostWarningModal: false,
+    pendingGenerationRequest: null,
+    generationHistory: [],
+    historyFilter: "all",
+    budgetStatus: null,
+    isOpenAIEditMode: false,
+    editSourceImageDataUrl: null,
   },
 }
 
@@ -1142,14 +1284,501 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           state.editorState.curLineGroup = []
         })
       },
+
+      // ========================================================================
+      // OpenAI Actions (Epic 4)
+      // ========================================================================
+
+      // Mode toggle
+      setOpenAIMode: (enabled: boolean) => {
+        set((state) => {
+          state.openAIState.isOpenAIMode = enabled
+        })
+        // Fetch models when entering OpenAI mode
+        if (enabled) {
+          get().fetchOpenAIModels()
+          get().refreshBudgetStatus()
+        }
+      },
+
+      setOpenAIEditMode: (enabled: boolean) => {
+        set((state) => {
+          state.openAIState.isOpenAIEditMode = enabled
+        })
+      },
+
+      // Model management
+      fetchOpenAIModels: async () => {
+        try {
+          const models = await listOpenAIModels()
+          set((state) => {
+            state.openAIState.openAIModels = models
+            // Set default model if not already selected
+            if (!state.openAIState.selectedOpenAIModel && models.length > 0) {
+              state.openAIState.selectedOpenAIModel = models[0].id
+            }
+          })
+        } catch (e: any) {
+          toast({
+            variant: "destructive",
+            description: `Failed to fetch OpenAI models: ${e.message}`,
+          })
+        }
+      },
+
+      setSelectedOpenAIModel: (modelId: string) => {
+        set((state) => {
+          state.openAIState.selectedOpenAIModel = modelId
+        })
+        // Update cost estimate when model changes
+        get().updateCostEstimate()
+      },
+
+      // Intent/Prompt flow
+      setOpenAIIntent: (intent: string) => {
+        set((state) => {
+          state.openAIState.openAIIntent = intent
+        })
+      },
+
+      refinePrompt: async () => {
+        const { openAIIntent } = get().openAIState
+        if (!openAIIntent.trim()) {
+          toast({
+            variant: "destructive",
+            description: "Please enter an intent first",
+          })
+          return
+        }
+
+        set((state) => {
+          state.openAIState.isRefiningPrompt = true
+        })
+
+        try {
+          const result = await apiRefinePrompt({ prompt: openAIIntent })
+          set((state) => {
+            state.openAIState.openAIRefinedPrompt = result.refinedPrompt
+          })
+          // Update cost estimate after refining
+          get().updateCostEstimate()
+        } catch (e: any) {
+          toast({
+            variant: "destructive",
+            description: `Failed to refine prompt: ${e.message}`,
+          })
+        } finally {
+          set((state) => {
+            state.openAIState.isRefiningPrompt = false
+          })
+        }
+      },
+
+      setOpenAIRefinedPrompt: (prompt: string) => {
+        set((state) => {
+          state.openAIState.openAIRefinedPrompt = prompt
+        })
+      },
+
+      setOpenAINegativePrompt: (prompt: string) => {
+        set((state) => {
+          state.openAIState.openAINegativePrompt = prompt
+        })
+      },
+
+      // Presets
+      setSelectedPreset: (preset: GenerationPreset) => {
+        set((state) => {
+          state.openAIState.selectedPreset = preset
+        })
+        // Update cost estimate when preset changes
+        get().updateCostEstimate()
+      },
+
+      updateCustomPresetConfig: (config: Partial<PresetConfig>) => {
+        set((state) => {
+          state.openAIState.customPresetConfig = {
+            ...state.openAIState.customPresetConfig,
+            ...config,
+          }
+        })
+        // Update cost estimate when config changes
+        if (get().openAIState.selectedPreset === GenerationPreset.CUSTOM) {
+          get().updateCostEstimate()
+        }
+      },
+
+      getActivePresetConfig: (): PresetConfig => {
+        const { selectedPreset, customPresetConfig } = get().openAIState
+        if (selectedPreset === GenerationPreset.CUSTOM) {
+          return customPresetConfig
+        }
+        return PRESET_CONFIGS[selectedPreset]
+      },
+
+      // Cost estimation
+      updateCostEstimate: async () => {
+        const { selectedOpenAIModel, openAIRefinedPrompt } = get().openAIState
+        if (!openAIRefinedPrompt) return
+
+        const config = get().getActivePresetConfig()
+
+        try {
+          const estimate = await estimateGenerationCost({
+            operation: "generate",
+            model: selectedOpenAIModel,
+            size: config.size,
+            quality: config.quality,
+            n: config.n,
+          })
+          set((state) => {
+            state.openAIState.currentCostEstimate = estimate
+          })
+        } catch (e: any) {
+          console.error("Failed to estimate cost:", e)
+        }
+      },
+
+      // Generation execution
+      requestOpenAIGeneration: async () => {
+        const {
+          openAIRefinedPrompt,
+          openAINegativePrompt,
+          selectedOpenAIModel,
+          currentCostEstimate,
+        } = get().openAIState
+
+        if (!openAIRefinedPrompt.trim()) {
+          toast({
+            variant: "destructive",
+            description: "Please enter or refine a prompt first",
+          })
+          return
+        }
+
+        const config = get().getActivePresetConfig()
+
+        const request: GenerateImageRequest = {
+          prompt: openAIRefinedPrompt,
+          negativePrompt: openAINegativePrompt,
+          model: selectedOpenAIModel,
+          size: config.size,
+          quality: config.quality,
+          n: config.n,
+        }
+
+        // If high cost tier, show warning modal
+        if (currentCostEstimate?.tier === "high") {
+          set((state) => {
+            state.openAIState.pendingGenerationRequest = request
+            state.openAIState.showCostWarningModal = true
+          })
+          return
+        }
+
+        // Otherwise proceed directly
+        set((state) => {
+          state.openAIState.pendingGenerationRequest = request
+        })
+        await get().confirmOpenAIGeneration()
+      },
+
+      confirmOpenAIGeneration: async () => {
+        const { pendingGenerationRequest, openAIIntent, selectedPreset, currentCostEstimate, selectedOpenAIModel } =
+          get().openAIState
+
+        if (!pendingGenerationRequest) return
+
+        set((state) => {
+          state.openAIState.showCostWarningModal = false
+          state.openAIState.isOpenAIGenerating = true
+        })
+
+        const jobId = crypto.randomUUID()
+        const config = get().getActivePresetConfig()
+
+        // Create job entry in history
+        const job: GenerationJob = {
+          id: jobId,
+          createdAt: Date.now(),
+          status: "running",
+          intent: openAIIntent,
+          refinedPrompt: pendingGenerationRequest.prompt,
+          negativePrompt: pendingGenerationRequest.negativePrompt || "",
+          preset: selectedPreset,
+          params: config,
+          model: selectedOpenAIModel,
+          estimatedCostUsd: currentCostEstimate?.estimatedCostUsd,
+        }
+
+        get().addToHistory(job)
+        set((state) => {
+          state.openAIState.currentJobId = jobId
+        })
+
+        try {
+          const resultDataUrl = await generateImageAsDataUrl(pendingGenerationRequest)
+          const thumbnail = await createThumbnail(resultDataUrl, 128)
+          const fingerprint = await generateFingerprint({
+            prompt: pendingGenerationRequest.prompt,
+            negativePrompt: pendingGenerationRequest.negativePrompt,
+            model: selectedOpenAIModel,
+            size: config.size,
+            quality: config.quality,
+            n: config.n,
+          })
+
+          get().updateHistoryJob(jobId, {
+            status: "succeeded",
+            resultImageDataUrl: resultDataUrl,
+            thumbnailDataUrl: thumbnail,
+            fingerprint,
+          })
+
+          toast({
+            description: "Image generated successfully!",
+          })
+
+          // Refresh budget status
+          get().refreshBudgetStatus()
+        } catch (e: any) {
+          get().updateHistoryJob(jobId, {
+            status: "failed",
+            errorMessage: e.message,
+          })
+          toast({
+            variant: "destructive",
+            description: `Generation failed: ${e.message}`,
+          })
+        } finally {
+          set((state) => {
+            state.openAIState.isOpenAIGenerating = false
+            state.openAIState.pendingGenerationRequest = null
+            state.openAIState.currentJobId = null
+          })
+        }
+      },
+
+      cancelPendingGeneration: () => {
+        set((state) => {
+          state.openAIState.showCostWarningModal = false
+          state.openAIState.pendingGenerationRequest = null
+        })
+      },
+
+      // History management
+      addToHistory: (job: GenerationJob) => {
+        set((state) => {
+          state.openAIState.generationHistory.unshift(castDraft(job))
+          // Keep only last 100 jobs
+          if (state.openAIState.generationHistory.length > 100) {
+            state.openAIState.generationHistory.pop()
+          }
+        })
+      },
+
+      updateHistoryJob: (id: string, updates: Partial<GenerationJob>) => {
+        set((state) => {
+          const index = state.openAIState.generationHistory.findIndex(
+            (j) => j.id === id
+          )
+          if (index !== -1) {
+            state.openAIState.generationHistory[index] = {
+              ...state.openAIState.generationHistory[index],
+              ...updates,
+            }
+          }
+        })
+      },
+
+      removeFromHistory: (id: string) => {
+        set((state) => {
+          state.openAIState.generationHistory =
+            state.openAIState.generationHistory.filter((j) => j.id !== id)
+        })
+      },
+
+      clearHistory: () => {
+        set((state) => {
+          state.openAIState.generationHistory = []
+        })
+      },
+
+      rerunJob: async (jobId: string) => {
+        const job = get().openAIState.generationHistory.find((j) => j.id === jobId)
+        if (!job) return
+
+        // Set up state for rerun
+        set((state) => {
+          state.openAIState.openAIIntent = job.intent
+          state.openAIState.openAIRefinedPrompt = job.refinedPrompt
+          state.openAIState.openAINegativePrompt = job.negativePrompt
+          state.openAIState.selectedPreset = job.preset
+          if (job.preset === GenerationPreset.CUSTOM) {
+            state.openAIState.customPresetConfig = { ...job.params }
+          }
+        })
+
+        // Trigger generation
+        await get().requestOpenAIGeneration()
+      },
+
+      copyJobPrompt: (jobId: string) => {
+        const job = get().openAIState.generationHistory.find((j) => j.id === jobId)
+        if (job) {
+          navigator.clipboard.writeText(job.refinedPrompt)
+          toast({
+            description: "Prompt copied to clipboard",
+          })
+        }
+      },
+
+      setHistoryFilter: (filter: "all" | "succeeded" | "failed") => {
+        set((state) => {
+          state.openAIState.historyFilter = filter
+        })
+      },
+
+      // Budget
+      refreshBudgetStatus: async () => {
+        try {
+          const status = await getOpenAIBudgetStatus()
+          set((state) => {
+            state.openAIState.budgetStatus = status
+          })
+        } catch (e: any) {
+          console.error("Failed to fetch budget status:", e)
+        }
+      },
+
+      // Edit flow
+      setEditSourceImage: (dataUrl: string | null) => {
+        set((state) => {
+          state.openAIState.editSourceImageDataUrl = dataUrl
+        })
+      },
+
+      runOpenAIEdit: async () => {
+        const {
+          openAIRefinedPrompt,
+          selectedOpenAIModel,
+          editSourceImageDataUrl,
+        } = get().openAIState
+        const { imageWidth, imageHeight } = get()
+        const { curLineGroup, extraMasks } = get().editorState
+
+        if (!editSourceImageDataUrl) {
+          toast({
+            variant: "destructive",
+            description: "Please select a source image first",
+          })
+          return
+        }
+
+        if (curLineGroup.length === 0 && extraMasks.length === 0) {
+          toast({
+            variant: "destructive",
+            description: "Please draw a mask first",
+          })
+          return
+        }
+
+        if (!openAIRefinedPrompt.trim()) {
+          toast({
+            variant: "destructive",
+            description: "Please enter an edit prompt",
+          })
+          return
+        }
+
+        set((state) => {
+          state.openAIState.isOpenAIGenerating = true
+        })
+
+        try {
+          // Generate mask from current strokes
+          const maskCanvas = generateMask(
+            imageWidth,
+            imageHeight,
+            [curLineGroup],
+            extraMasks,
+            BRUSH_COLOR
+          )
+          const maskBlob = dataURItoBlob(maskCanvas.toDataURL())
+
+          // Convert source image to blob
+          const sourceResponse = await fetch(editSourceImageDataUrl)
+          const sourceBlob = await sourceResponse.blob()
+
+          const config = get().getActivePresetConfig()
+
+          const resultDataUrl = await editImageAsDataUrl(
+            sourceBlob,
+            maskBlob,
+            openAIRefinedPrompt,
+            {
+              model: selectedOpenAIModel,
+              size: config.size,
+              quality: config.quality,
+            }
+          )
+
+          // Add to history
+          const jobId = crypto.randomUUID()
+          const thumbnail = await createThumbnail(resultDataUrl, 128)
+
+          const job: GenerationJob = {
+            id: jobId,
+            createdAt: Date.now(),
+            status: "succeeded",
+            intent: get().openAIState.openAIIntent,
+            refinedPrompt: openAIRefinedPrompt,
+            negativePrompt: "",
+            preset: get().openAIState.selectedPreset,
+            params: config,
+            model: selectedOpenAIModel,
+            resultImageDataUrl: resultDataUrl,
+            thumbnailDataUrl: thumbnail,
+            isEdit: true,
+          }
+
+          get().addToHistory(job)
+
+          // Load result into editor
+          const newRender = new Image()
+          await loadImage(newRender, resultDataUrl)
+          get().setImageSize(newRender.width, newRender.height)
+
+          set((state) => {
+            state.editorState.renders.push(castDraft(newRender))
+            state.editorState.curLineGroup = []
+            state.editorState.extraMasks = []
+          })
+
+          toast({
+            description: "Image edited successfully!",
+          })
+
+          get().refreshBudgetStatus()
+        } catch (e: any) {
+          toast({
+            variant: "destructive",
+            description: `Edit failed: ${e.message}`,
+          })
+        } finally {
+          set((state) => {
+            state.openAIState.isOpenAIGenerating = false
+          })
+        }
+      },
     })),
     {
       name: "ZUSTAND_STATE", // name of the item in the storage (must be unique)
-      version: 2,
+      version: 3, // Bumped for OpenAI state addition
       partialize: (state) =>
         Object.fromEntries(
           Object.entries(state).filter(([key]) =>
-            ["fileManagerState", "settings"].includes(key)
+            ["fileManagerState", "settings", "openAIState"].includes(key)
           )
         ),
     }

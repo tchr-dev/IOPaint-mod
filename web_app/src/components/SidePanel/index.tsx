@@ -11,11 +11,14 @@ import { CV2, LDM, MODEL_TYPE_INPAINT } from "@/lib/const"
 import LDMOptions from "./LDMOptions"
 import DiffusionOptions from "./DiffusionOptions"
 import CV2Options from "./CV2Options"
+import { OpenAIGeneratePanel, OpenAIEditPanel } from "../OpenAI"
 
 const SidePanel = () => {
-  const [settings, windowSize] = useStore((state) => [
+  const [settings, windowSize, isOpenAIMode, isOpenAIEditMode] = useStore((state) => [
     state.settings,
     state.windowSize,
+    state.openAIState.isOpenAIMode,
+    state.openAIState.isOpenAIEditMode,
   ])
 
   const [open, toggleOpen] = useToggle(true)
@@ -24,15 +27,24 @@ const SidePanel = () => {
     toggleOpen()
   })
 
-  if (
-    settings.model.name !== LDM &&
-    settings.model.name !== CV2 &&
-    settings.model.model_type === MODEL_TYPE_INPAINT
-  ) {
+  // Show panel for OpenAI mode or for supported local models
+  const shouldShowPanel =
+    isOpenAIMode ||
+    settings.model.name === LDM ||
+    settings.model.name === CV2 ||
+    settings.model.model_type !== MODEL_TYPE_INPAINT
+
+  if (!shouldShowPanel) {
     return null
   }
 
   const renderSidePanelOptions = () => {
+    // OpenAI mode takes precedence
+    if (isOpenAIMode) {
+      // Show edit panel or generate panel based on mode
+      return isOpenAIEditMode ? <OpenAIEditPanel /> : <OpenAIGeneratePanel />
+    }
+    // Local model options
     if (settings.model.name === LDM) {
       return <LDMOptions />
     }
@@ -40,6 +52,15 @@ const SidePanel = () => {
       return <CV2Options />
     }
     return <DiffusionOptions />
+  }
+
+  const getPanelTitle = () => {
+    if (isOpenAIMode) {
+      return isOpenAIEditMode ? "OpenAI Edit" : "OpenAI Generation"
+    }
+    return settings.model.name.split("/")[
+      settings.model.name.split("/").length - 1
+    ]
   }
 
   return (
@@ -68,11 +89,7 @@ const SidePanel = () => {
         <SheetHeader>
           <RowContainer>
             <div className="overflow-hidden mr-8">
-              {
-                settings.model.name.split("/")[
-                  settings.model.name.split("/").length - 1
-                ]
-              }
+              {getPanelTitle()}
             </div>
             <Button
               variant="ghost"
