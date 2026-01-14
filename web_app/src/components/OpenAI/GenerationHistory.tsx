@@ -17,7 +17,9 @@
  * ```
  */
 
-import { History, Trash2, X, Filter } from "lucide-react"
+import { useEffect } from "react"
+import { Database, History, RefreshCw, Save, Trash2, X, Filter } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -29,7 +31,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { useStore } from "@/lib/states"
-import { GenerationJob } from "@/lib/types"
+import { GenerationJob, HistorySnapshot } from "@/lib/types"
 import { HistoryItem } from "./HistoryItem"
 
 interface GenerationHistoryProps {
@@ -43,13 +45,32 @@ export function GenerationHistory({ onClose }: GenerationHistoryProps) {
     setHistoryFilter,
     clearHistory,
     setFile,
+    historySnapshots,
+    saveHistorySnapshot,
+    syncHistorySnapshots,
+    deleteHistorySnapshot,
+    clearHistorySnapshots,
   ] = useStore((state) => [
     state.openAIState.generationHistory,
     state.openAIState.historyFilter,
     state.setHistoryFilter,
     state.clearHistory,
     state.setFile,
+    state.openAIState.historySnapshots,
+    state.saveHistorySnapshot,
+    state.syncHistorySnapshots,
+    state.deleteHistorySnapshot,
+    state.clearHistorySnapshots,
   ])
+
+  useEffect(() => {
+    syncHistorySnapshots()
+  }, [syncHistorySnapshots])
+
+  const getSnapshotCount = (snapshot: HistorySnapshot): number | null => {
+    const history = snapshot.payload?.["history"]
+    return Array.isArray(history) ? history.length : null
+  }
 
   // Filter jobs based on selected filter
   const filteredJobs = generationHistory.filter((job) => {
@@ -120,15 +141,34 @@ export function GenerationHistory({ onClose }: GenerationHistoryProps) {
         </div>
 
         {generationHistory.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearHistory}
-            className="text-destructive hover:text-destructive gap-1"
-          >
-            <Trash2 className="h-4 w-4" />
-            Clear All
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => saveHistorySnapshot()}
+              className="gap-1"
+            >
+              <Save className="h-4 w-4" />
+              Save Snapshot
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={syncHistorySnapshots}
+              aria-label="Sync snapshots"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearHistory}
+              className="text-destructive hover:text-destructive gap-1"
+            >
+              <Trash2 className="h-4 w-4" />
+              Clear All
+            </Button>
+          </div>
         )}
       </div>
 
@@ -136,6 +176,55 @@ export function GenerationHistory({ onClose }: GenerationHistoryProps) {
 
       {/* Job list */}
       <ScrollArea className="flex-1 p-4">
+        {historySnapshots.length > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Database className="h-4 w-4" />
+                Snapshots ({historySnapshots.length})
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearHistorySnapshots}
+                className="text-destructive hover:text-destructive gap-1"
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear
+              </Button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {historySnapshots.map((snapshot) => {
+                const count = getSnapshotCount(snapshot)
+                return (
+                  <div
+                    key={snapshot.id}
+                    className="flex items-center justify-between rounded-md border px-3 py-2"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">History Snapshot</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(snapshot.createdAt), {
+                          addSuffix: true,
+                        })}
+                        {count !== null ? ` • ${count} items` : ""}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteHistorySnapshot(snapshot.id)}
+                      aria-label="Delete snapshot"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+            <Separator className="mt-4" />
+          </div>
+        )}
         {filteredJobs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-center">
             <History className="h-10 w-10 text-muted-foreground mb-2" />

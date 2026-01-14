@@ -499,3 +499,403 @@ export async function generateFingerprint(params: {
 
   return hashHex.substring(0, 16)
 }
+
+// ============================================================================
+// History API (Epic 3 - Persistent Storage)
+// ============================================================================
+
+/**
+ * Backend job record from the history API
+ */
+export interface BackendGenerationJob {
+  id: string
+  session_id: string
+  status: string
+  operation: string
+  model: string
+  intent?: string
+  refined_prompt?: string
+  negative_prompt?: string
+  preset?: string
+  params?: Record<string, unknown>
+  fingerprint?: string
+  estimated_cost_usd?: number
+  actual_cost_usd?: number
+  is_edit: boolean
+  error_message?: string
+  result_image_id?: string
+  thumbnail_image_id?: string
+  created_at: string
+  completed_at?: string
+}
+
+/**
+ * History list response from the backend
+ */
+export interface HistoryListResponse {
+  jobs: BackendGenerationJob[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/**
+ * Backend snapshot record from the history snapshots API
+ */
+export interface BackendHistorySnapshot {
+  id: string
+  session_id: string
+  payload: Record<string, unknown>
+  created_at: string
+}
+
+/**
+ * History snapshot list response from the backend
+ */
+export interface HistorySnapshotListResponse {
+  snapshots: BackendHistorySnapshot[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/**
+ * Parameters for creating a new history entry
+ */
+export interface CreateHistoryRequest {
+  operation: "generate" | "edit" | "refine"
+  model: string
+  intent?: string
+  refined_prompt?: string
+  negative_prompt?: string
+  preset?: string
+  params?: Record<string, unknown>
+  fingerprint?: string
+  estimated_cost_usd?: number
+  is_edit?: boolean
+}
+
+/**
+ * Parameters for updating a history entry
+ */
+export interface UpdateHistoryRequest {
+  status?: "queued" | "running" | "succeeded" | "failed" | "blocked_budget"
+  actual_cost_usd?: number
+  error_message?: string
+  result_image_id?: string
+  thumbnail_image_id?: string
+}
+
+/**
+ * Fetch generation history from the backend.
+ *
+ * @param options - Filtering and pagination options
+ * @returns List of generation jobs with pagination info
+ *
+ * @example
+ * ```typescript
+ * const { jobs, total } = await fetchHistory({ status: "succeeded", limit: 20 })
+ * ```
+ */
+export async function fetchHistory(options?: {
+  status?: string
+  limit?: number
+  offset?: number
+}): Promise<HistoryListResponse> {
+  const params = new URLSearchParams()
+  if (options?.status) params.set("status", options.status)
+  if (options?.limit) params.set("limit", String(options.limit))
+  if (options?.offset) params.set("offset", String(options.offset))
+
+  const queryString = params.toString()
+  const url = queryString
+    ? `${API_ENDPOINT}/history?${queryString}`
+    : `${API_ENDPOINT}/history`
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+/**
+ * Get a specific history entry by ID.
+ *
+ * @param jobId - The job ID to retrieve
+ * @returns The generation job record
+ */
+export async function getHistoryJob(jobId: string): Promise<BackendGenerationJob> {
+  const res = await fetch(`${API_ENDPOINT}/history/${jobId}`, {
+    method: "GET",
+    headers: {
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+/**
+ * Create a new history entry in the backend.
+ *
+ * @param job - The job data to create
+ * @returns The created job record with ID
+ */
+export async function createHistoryJob(
+  job: CreateHistoryRequest
+): Promise<BackendGenerationJob> {
+  const res = await fetch(`${API_ENDPOINT}/history`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+    body: JSON.stringify(job),
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+/**
+ * Update a history entry.
+ *
+ * @param jobId - The job ID to update
+ * @param updates - The fields to update
+ * @returns The updated job record
+ */
+export async function updateHistoryJob(
+  jobId: string,
+  updates: UpdateHistoryRequest
+): Promise<BackendGenerationJob> {
+  const res = await fetch(`${API_ENDPOINT}/history/${jobId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+    body: JSON.stringify(updates),
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+/**
+ * Delete a history entry.
+ *
+ * @param jobId - The job ID to delete
+ */
+export async function deleteHistoryJob(jobId: string): Promise<void> {
+  const res = await fetch(`${API_ENDPOINT}/history/${jobId}`, {
+    method: "DELETE",
+    headers: {
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+}
+
+/**
+ * Clear all history for the current session.
+ *
+ * @returns The number of jobs deleted
+ */
+export async function clearHistory(): Promise<{ deleted: number }> {
+  const res = await fetch(`${API_ENDPOINT}/history/clear`, {
+    method: "DELETE",
+    headers: {
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+/**
+ * Fetch history snapshots from the backend.
+ */
+export async function fetchHistorySnapshots(options?: {
+  limit?: number
+  offset?: number
+}): Promise<HistorySnapshotListResponse> {
+  const params = new URLSearchParams()
+  if (options?.limit) params.set("limit", String(options.limit))
+  if (options?.offset) params.set("offset", String(options.offset))
+
+  const queryString = params.toString()
+  const url = queryString
+    ? `${API_ENDPOINT}/history/snapshots?${queryString}`
+    : `${API_ENDPOINT}/history/snapshots`
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+/**
+ * Create a history snapshot in the backend.
+ */
+export async function createHistorySnapshot(payload: Record<string, unknown>): Promise<BackendHistorySnapshot> {
+  const res = await fetch(`${API_ENDPOINT}/history/snapshots`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+    body: JSON.stringify({ payload }),
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+/**
+ * Get a specific history snapshot by ID.
+ */
+export async function getHistorySnapshot(snapshotId: string): Promise<BackendHistorySnapshot> {
+  const res = await fetch(`${API_ENDPOINT}/history/snapshots/${snapshotId}`, {
+    method: "GET",
+    headers: {
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+/**
+ * Delete a history snapshot.
+ */
+export async function deleteHistorySnapshot(snapshotId: string): Promise<void> {
+  const res = await fetch(`${API_ENDPOINT}/history/snapshots/${snapshotId}`, {
+    method: "DELETE",
+    headers: {
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+}
+
+/**
+ * Clear all history snapshots for the current session.
+ */
+export async function clearHistorySnapshots(): Promise<{ deleted: number }> {
+  const res = await fetch(`${API_ENDPOINT}/history/snapshots/clear`, {
+    method: "DELETE",
+    headers: {
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+// ============================================================================
+// Image Storage API (Epic 3)
+// ============================================================================
+
+/**
+ * Get the URL for a stored image.
+ *
+ * @param imageId - The image ID
+ * @returns Full URL to fetch the image
+ */
+export function getStoredImageUrl(imageId: string): string {
+  return `${API_ENDPOINT}/storage/images/${imageId}`
+}
+
+/**
+ * Get the URL for an image thumbnail.
+ *
+ * @param imageId - The image ID
+ * @returns Full URL to fetch the thumbnail
+ */
+export function getStoredThumbnailUrl(imageId: string): string {
+  return `${API_ENDPOINT}/storage/images/${imageId}/thumbnail`
+}
+
+/**
+ * Fetch a stored image as a Blob.
+ *
+ * @param imageId - The image ID
+ * @returns The image as a Blob
+ */
+export async function fetchStoredImage(imageId: string): Promise<Blob> {
+  const res = await fetch(getStoredImageUrl(imageId), {
+    method: "GET",
+    headers: {
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.blob()
+}
+
+/**
+ * Fetch a stored image as a data URL for display.
+ *
+ * @param imageId - The image ID
+ * @returns The image as a data URL string
+ */
+export async function fetchStoredImageAsDataUrl(imageId: string): Promise<string> {
+  const blob = await fetchStoredImage(imageId)
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}

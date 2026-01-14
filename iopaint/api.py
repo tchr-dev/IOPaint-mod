@@ -87,6 +87,21 @@ from iopaint.budget import (
     CostEstimateResponse,
 )
 
+# Storage imports (Epic 3)
+from iopaint.storage import (
+    HistoryStorage,
+    ImageStorage,
+    GenerationJob,
+    GenerationJobCreate,
+    GenerationJobUpdate,
+    JobStatus,
+    JobOperation,
+    HistoryListResponse,
+    HistorySnapshot,
+    HistorySnapshotCreate,
+    HistorySnapshotListResponse,
+)
+
 CURRENT_DIR = Path(__file__).parent.absolute().resolve()
 WEB_APP_DIR = CURRENT_DIR / "web_app"
 
@@ -198,6 +213,14 @@ class Api:
         self.cost_estimator = CostEstimator()
         logger.info(f"Budget safety enabled: {self.budget_config}")
 
+        # Initialize history and image storage (Epic 3)
+        self.history_storage = HistoryStorage(db_path=self.budget_config.db_path)
+        self.image_storage = ImageStorage(
+            data_dir=self.budget_config.data_dir,
+            db_path=self.budget_config.db_path,
+        )
+        logger.info(f"Storage initialized: {self.budget_config.data_dir}")
+
         # fmt: off
         self.add_api_route("/api/v1/gen-info", self.api_geninfo, methods=["POST"], response_model=GenInfoResponse)
         self.add_api_route("/api/v1/server-config", self.api_server_config, methods=["GET"],
@@ -224,6 +247,30 @@ class Api:
                            response_model=BudgetStatusResponse)
         self.add_api_route("/api/v1/budget/estimate", self.api_budget_estimate, methods=["POST"],
                            response_model=CostEstimateResponse)
+
+        # History API routes (Epic 3)
+        self.add_api_route("/api/v1/history", self.api_list_history, methods=["GET"],
+                           response_model=HistoryListResponse)
+        self.add_api_route("/api/v1/history", self.api_create_history, methods=["POST"],
+                           response_model=GenerationJob)
+        self.add_api_route("/api/v1/history/snapshots", self.api_list_history_snapshots, methods=["GET"],
+                           response_model=HistorySnapshotListResponse)
+        self.add_api_route("/api/v1/history/snapshots", self.api_create_history_snapshot, methods=["POST"],
+                           response_model=HistorySnapshot)
+        self.add_api_route("/api/v1/history/snapshots/clear", self.api_clear_history_snapshots, methods=["DELETE"])
+        self.add_api_route("/api/v1/history/snapshots/{snapshot_id}", self.api_get_history_snapshot, methods=["GET"],
+                           response_model=HistorySnapshot)
+        self.add_api_route("/api/v1/history/snapshots/{snapshot_id}", self.api_delete_history_snapshot, methods=["DELETE"])
+        self.add_api_route("/api/v1/history/{job_id}", self.api_get_history, methods=["GET"],
+                           response_model=GenerationJob)
+        self.add_api_route("/api/v1/history/{job_id}", self.api_update_history, methods=["PATCH"],
+                           response_model=GenerationJob)
+        self.add_api_route("/api/v1/history/{job_id}", self.api_delete_history, methods=["DELETE"])
+        self.add_api_route("/api/v1/history/clear", self.api_clear_history, methods=["DELETE"])
+
+        # Image storage API routes (Epic 3)
+        self.add_api_route("/api/v1/storage/images/{image_id}", self.api_get_stored_image, methods=["GET"])
+        self.add_api_route("/api/v1/storage/images/{image_id}/thumbnail", self.api_get_thumbnail, methods=["GET"])
 
         self.app.mount("/", StaticFiles(directory=WEB_APP_DIR, html=True), name="assets")
         # fmt: on
@@ -501,6 +548,179 @@ class Api:
             cost_tier=tier,
             warning=warning,
         )
+
+    # =========================================================================
+    # History API endpoints (Epic 3)
+    # =========================================================================
+
+    def api_list_history(
+        self,
+        request: Request,
+        status: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> HistoryListResponse:
+        """List generation history for the current session."""
+        session_id = self._get_session_id(request)
+
+        # Validate limit
+        if limit > 100:
+            limit = 100
+        if limit < 1:
+            limit = 1
+
+        jobs, total = self.history_storage.list_jobs(
+            session_id=session_id,
+            status=status,
+            limit=limit,
+            offset=offset,
+        )
+        return HistoryListResponse(
+            jobs=jobs,
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+
+    def api_create_history(
+        self,
+        request: Request,
+        job: GenerationJobCreate,
+    ) -> GenerationJob:
+        """Create a new history entry."""
+        session_id = self._get_session_id(request)
+        return self.history_storage.save_job(session_id=session_id, job=job)
+
+    def api_get_history(self, job_id: str) -> GenerationJob:
+        """Get a specific history entry."""
+        job = self.history_storage.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return job
+
+    def api_update_history(
+        self,
+        job_id: str,
+        updates: GenerationJobUpdate,
+    ) -> GenerationJob:
+        """Update a history entry."""
+        # Check job exists
+        job = self.history_storage.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        self.history_storage.update_job(job_id, updates)
+
+        # Return updated job
+        updated_job = self.history_storage.get_job(job_id)
+        if not updated_job:
+            raise HTTPException(status_code=404, detail="Job not found after update")
+        return updated_job
+
+    def api_delete_history(self, job_id: str) -> dict:
+        """Delete a history entry."""
+        # Also delete associated images
+        self.image_storage.delete_job_images(job_id)
+
+        deleted = self.history_storage.delete_job(job_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return {"deleted": True, "job_id": job_id}
+
+    def api_clear_history(self, request: Request) -> dict:
+        """Clear all history for the current session."""
+        session_id = self._get_session_id(request)
+
+        # Get all jobs to delete their images
+        jobs, _ = self.history_storage.list_jobs(session_id, limit=10000, offset=0)
+        for job in jobs:
+            self.image_storage.delete_job_images(job.id)
+
+        count = self.history_storage.clear_history(session_id)
+        return {"deleted": count, "session_id": session_id}
+
+    def api_list_history_snapshots(
+        self,
+        request: Request,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> HistorySnapshotListResponse:
+        """List history snapshots for the current session."""
+        session_id = self._get_session_id(request)
+
+        if limit > 100:
+            limit = 100
+        if limit < 1:
+            limit = 1
+
+        snapshots, total = self.history_storage.list_snapshots(
+            session_id=session_id,
+            limit=limit,
+            offset=offset,
+        )
+        return HistorySnapshotListResponse(
+            snapshots=snapshots,
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+
+    def api_create_history_snapshot(
+        self,
+        request: Request,
+        snapshot: HistorySnapshotCreate,
+    ) -> HistorySnapshot:
+        """Create a new history snapshot."""
+        session_id = self._get_session_id(request)
+        return self.history_storage.save_snapshot(
+            session_id=session_id,
+            payload=snapshot.payload,
+        )
+
+    def api_get_history_snapshot(self, snapshot_id: str) -> HistorySnapshot:
+        """Get a specific history snapshot."""
+        snapshot = self.history_storage.get_snapshot(snapshot_id)
+        if not snapshot:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        return snapshot
+
+    def api_delete_history_snapshot(self, snapshot_id: str) -> dict:
+        """Delete a history snapshot."""
+        deleted = self.history_storage.delete_snapshot(snapshot_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        return {"deleted": True, "snapshot_id": snapshot_id}
+
+    def api_clear_history_snapshots(self, request: Request) -> dict:
+        """Clear all history snapshots for the current session."""
+        session_id = self._get_session_id(request)
+        count = self.history_storage.clear_snapshots(session_id)
+        return {"deleted": count, "session_id": session_id}
+
+    # =========================================================================
+    # Image Storage API endpoints (Epic 3)
+    # =========================================================================
+
+    def api_get_stored_image(self, image_id: str) -> Response:
+        """Get a stored image by ID."""
+        image_data = self.image_storage.get_image(image_id)
+        if not image_data:
+            raise HTTPException(status_code=404, detail="Image not found")
+
+        # Determine content type from file extension
+        record = self.image_storage.get_image_record(image_id)
+        content_type = "image/png"
+        if record and record.path.endswith(".jpg"):
+            content_type = "image/jpeg"
+
+        return Response(content=image_data, media_type=content_type)
+
+    def api_get_thumbnail(self, image_id: str) -> Response:
+        """Get thumbnail for an image (lazy-generated)."""
+        thumb_data = self.image_storage.get_thumbnail(image_id)
+        if not thumb_data:
+            raise HTTPException(status_code=404, detail="Image not found")
+        return Response(content=thumb_data, media_type="image/jpeg")
 
     def launch(self):
         self.app.include_router(self.router)

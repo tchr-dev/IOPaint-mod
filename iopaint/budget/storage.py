@@ -15,9 +15,14 @@ class BudgetStorage:
     """SQLite-based storage for budget ledger and related data.
 
     Thread-safe implementation using connection per thread.
+
+    Schema versions:
+        1: Initial budget tables (budget_ledger, dedupe_cache, rate_limits)
+        2: Added history tables (generation_jobs, images) - see iopaint/storage/
+        3: Added history_snapshots table
     """
 
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 3
 
     def __init__(self, config: BudgetConfig):
         self.config = config
@@ -128,9 +133,99 @@ class BudgetStorage:
             "CREATE INDEX idx_dedupe_expires ON dedupe_cache(expires_at)"
         )
 
+        # History snapshots table (optional history cache)
+        cursor.execute("""
+            CREATE TABLE history_snapshots (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX idx_snapshots_session ON history_snapshots(session_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX idx_snapshots_created ON history_snapshots(created_at DESC)"
+        )
+
     def _migrate_schema(self, cursor: sqlite3.Cursor, from_version: int) -> None:
         """Migrate schema from older version."""
-        # Future migrations go here
+        if from_version < 2:
+            # Version 2: Add history tables
+            # Generation jobs table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS generation_jobs (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    operation TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    intent TEXT,
+                    refined_prompt TEXT,
+                    negative_prompt TEXT,
+                    preset TEXT,
+                    params TEXT,
+                    fingerprint TEXT,
+                    estimated_cost_usd REAL,
+                    actual_cost_usd REAL,
+                    is_edit INTEGER DEFAULT 0,
+                    error_message TEXT,
+                    result_image_id TEXT,
+                    thumbnail_image_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP
+                )
+            """)
+
+            # Images table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS images (
+                    id TEXT PRIMARY KEY,
+                    job_id TEXT,
+                    path TEXT NOT NULL,
+                    thumbnail_path TEXT,
+                    width INTEGER,
+                    height INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (job_id) REFERENCES generation_jobs(id) ON DELETE SET NULL
+                )
+            """)
+
+            # Indexes
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_jobs_session ON generation_jobs(session_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_jobs_fingerprint ON generation_jobs(fingerprint)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_jobs_created ON generation_jobs(created_at DESC)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_jobs_status ON generation_jobs(status)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_images_job ON images(job_id)"
+            )
+
+        if from_version < 3:
+            # Version 3: Add history snapshots table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS history_snapshots (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_snapshots_session ON history_snapshots(session_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_snapshots_created ON history_snapshots(created_at DESC)"
+            )
+
         cursor.execute(
             "UPDATE schema_version SET version = ?",
             (self.SCHEMA_VERSION,),

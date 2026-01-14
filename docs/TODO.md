@@ -8,7 +8,7 @@
 |------|-------------|--------|--------|
 | Epic 1 | OpenAI-compatible API | ✅ Done | `6478cae` |
 | Epic 2 | Budget Safety | ✅ Done | `18f24e3` |
-| Epic 3 | Storage (SQLite) | ⏳ Pending | — |
+| Epic 3 | Storage (SQLite) | ✅ Done | `pending` |
 | Epic 4 | UI/UX Components | ✅ Done | `5c26fe6` |
 | Epic 5 | Runner/Jobs Queue | ⏳ Pending | — |
 | Epic 6 | Testing | ⏳ Pending | — |
@@ -129,16 +129,18 @@ iopaint/budget/
 
 **Goal**: Audit trail, job replay, gallery, history restoration, budget ledger persistence
 
-**Status**: ⏳ PENDING
+**Status**: ✅ COMPLETE (`pending commit`)
+
+**Documentation**: See `docs/EPIC3-STORAGE.md` for detailed implementation guide.
 
 ### E3.1 SQLite Schema
 
-- [ ] `jobs` table (id, status, params, timestamps)
-- [ ] `images` table (id, job_id, path, metadata)
-- [ ] `history_snapshots` table
-- [ ] `budget_ledger` table (estimated vs actual costs)
-- [ ] `models_cache` table
-- [ ] Migration system (alembic or custom)
+- [x] `generation_jobs` table (id, status, params, timestamps)
+- [x] `images` table (id, job_id, path, metadata)
+- [x] `history_snapshots` table
+- [x] `budget_ledger` table (existing from Epic 2)
+- [ ] `models_cache` table (deferred - not critical for MVP)
+- [x] Migration system (custom schema versioning in budget/storage.py)
 
 #### Suggested Schema
 
@@ -173,15 +175,34 @@ CREATE INDEX idx_jobs_created ON jobs(created_at DESC);
 
 ### E3.2 File Layout
 
-- [ ] `data/images/{job_id}/{image_id}.{ext}` — generated images
-- [ ] `data/input/{sha256}.{ext}` — source images (deduped)
-- [ ] `data/thumbs/{image_id}.jpg` — thumbnails (optional)
+- [x] `data/images/{job_id}/{image_id}.{ext}` — generated images
+- [ ] `data/input/{sha256}.{ext}` — source images (deduped - deferred)
+- [x] `data/thumbnails/{image_id}.jpg` — lazy-generated thumbnails
 
 ### E3.3 History & Projects
 
-- [ ] History persistence across sessions
-- [ ] Project export/import
-- [ ] Gap-free history restoration
+- [x] History persistence across sessions (via SQLite + frontend sync)
+- [ ] Project export/import (deferred)
+- [x] History restoration from backend
+
+#### Files Created
+
+```
+iopaint/storage/
+├── __init__.py          # Package exports
+├── models.py            # Pydantic schemas (GenerationJob, ImageRecord, etc.)
+├── history.py           # HistoryStorage class with SQLite CRUD
+└── images.py            # ImageStorage class with file management
+```
+
+#### Files Modified
+
+| File | Changes |
+|------|---------|
+| `iopaint/budget/storage.py` | Added schema v2 migration for generation_jobs/images tables |
+| `iopaint/api.py` | Added 8 new endpoints: `/api/v1/history/*`, `/api/v1/storage/images/*` |
+| `web_app/src/lib/openai-api.ts` | Added History and Image Storage API client functions |
+| `web_app/src/lib/states.ts` | Added backend sync to history management actions |
 
 ---
 

@@ -281,6 +281,16 @@ export interface GenerationJob {
 }
 
 /**
+ * Snapshot of generation history for restore/audit.
+ */
+export interface HistorySnapshot {
+  id: string
+  sessionId: string
+  payload: Record<string, unknown>
+  createdAt: number
+}
+
+/**
  * OpenAI model information from list_models endpoint
  */
 export interface OpenAIModelInfo {

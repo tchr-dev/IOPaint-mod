@@ -24,6 +24,7 @@ import {
   CostEstimate,
   BudgetStatus,
   GenerationJob,
+  HistorySnapshot,
   OpenAIModelInfo,
   PRESET_CONFIGS,
   GenerateImageRequest,
@@ -54,6 +55,18 @@ import {
   getOpenAIBudgetStatus,
   createThumbnail,
   generateFingerprint,
+  // History API (Epic 3)
+  fetchHistory as apiFetchHistory,
+  createHistoryJob as apiCreateHistoryJob,
+  updateHistoryJob as apiUpdateHistoryJob,
+  deleteHistoryJob as apiDeleteHistoryJob,
+  clearHistory as apiClearHistory,
+  type BackendGenerationJob,
+  fetchHistorySnapshots as apiFetchHistorySnapshots,
+  createHistorySnapshot as apiCreateHistorySnapshot,
+  deleteHistorySnapshot as apiDeleteHistorySnapshot,
+  clearHistorySnapshots as apiClearHistorySnapshots,
+  type BackendHistorySnapshot,
 } from "./openai-api"
 import { toast } from "@/components/ui/use-toast"
 
@@ -196,6 +209,7 @@ type OpenAIState = {
   // History/Gallery (E4.3)
   generationHistory: GenerationJob[]
   historyFilter: "all" | "succeeded" | "failed"
+  historySnapshots: HistorySnapshot[]
 
   // Budget status cache
   budgetStatus: BudgetStatus | null
@@ -236,7 +250,7 @@ type OpenAIAction = {
   confirmOpenAIGeneration: () => Promise<void>
   cancelPendingGeneration: () => void
 
-  // History management
+  // History management (with backend sync - Epic 3)
   addToHistory: (job: GenerationJob) => void
   updateHistoryJob: (id: string, updates: Partial<GenerationJob>) => void
   removeFromHistory: (id: string) => void
@@ -244,6 +258,11 @@ type OpenAIAction = {
   rerunJob: (jobId: string) => Promise<void>
   copyJobPrompt: (jobId: string) => void
   setHistoryFilter: (filter: "all" | "succeeded" | "failed") => void
+  syncHistoryWithBackend: () => Promise<void>
+  syncHistorySnapshots: () => Promise<void>
+  saveHistorySnapshot: (payload?: Record<string, unknown>) => Promise<void>
+  deleteHistorySnapshot: (snapshotId: string) => Promise<void>
+  clearHistorySnapshots: () => Promise<void>
 
   // Budget
   refreshBudgetStatus: () => Promise<void>
@@ -500,6 +519,7 @@ const defaultValues: AppState = {
     pendingGenerationRequest: null,
     generationHistory: [],
     historyFilter: "all",
+    historySnapshots: [],
     budgetStatus: null,
     isOpenAIEditMode: false,
     editSourceImageDataUrl: null,
@@ -1566,8 +1586,9 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         })
       },
 
-      // History management
+      // History management (with backend sync - Epic 3)
       addToHistory: (job: GenerationJob) => {
+        // Add to local state immediately
         set((state) => {
           state.openAIState.generationHistory.unshift(castDraft(job))
           // Keep only last 100 jobs
@@ -1575,6 +1596,20 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
             state.openAIState.generationHistory.pop()
           }
         })
+
+        // Sync to backend (fire-and-forget, errors logged but not blocking)
+        apiCreateHistoryJob({
+          operation: job.isEdit ? "edit" : "generate",
+          model: job.model,
+          intent: job.intent,
+          refined_prompt: job.refinedPrompt,
+          negative_prompt: job.negativePrompt,
+          preset: job.preset,
+          params: job.params as unknown as Record<string, unknown>,
+          fingerprint: job.fingerprint,
+          estimated_cost_usd: job.estimatedCostUsd,
+          is_edit: job.isEdit,
+        }).catch((e) => console.error("Failed to sync job to backend:", e))
       },
 
       updateHistoryJob: (id: string, updates: Partial<GenerationJob>) => {
@@ -1589,6 +1624,18 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
             }
           }
         })
+
+        // Sync status updates to backend
+        const backendUpdates: Record<string, unknown> = {}
+        if (updates.status) backendUpdates.status = updates.status
+        if (updates.actualCostUsd !== undefined) backendUpdates.actual_cost_usd = updates.actualCostUsd
+        if (updates.errorMessage !== undefined) backendUpdates.error_message = updates.errorMessage
+
+        if (Object.keys(backendUpdates).length > 0) {
+          apiUpdateHistoryJob(id, backendUpdates as any).catch((e) =>
+            console.error("Failed to sync job update to backend:", e)
+          )
+        }
       },
 
       removeFromHistory: (id: string) => {
@@ -1596,12 +1643,159 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           state.openAIState.generationHistory =
             state.openAIState.generationHistory.filter((j) => j.id !== id)
         })
+
+        // Sync deletion to backend
+        apiDeleteHistoryJob(id).catch((e) =>
+          console.error("Failed to delete job from backend:", e)
+        )
       },
 
       clearHistory: () => {
         set((state) => {
           state.openAIState.generationHistory = []
         })
+
+        // Sync clear to backend
+        apiClearHistory().catch((e) =>
+          console.error("Failed to clear history on backend:", e)
+        )
+      },
+
+      // Fetch history from backend and merge with local
+      syncHistoryWithBackend: async () => {
+        try {
+          const response = await apiFetchHistory({ limit: 100 })
+
+          // Convert backend format to frontend GenerationJob format
+          const backendJobs: GenerationJob[] = response.jobs.map((bj: BackendGenerationJob) => {
+            // Parse params from backend or use defaults
+            const defaultParams: PresetConfig = { size: "1024x1024", quality: "standard", n: 1 }
+            const params = bj.params
+              ? {
+                  size: (bj.params.size as string) || defaultParams.size,
+                  quality: (bj.params.quality as string) || defaultParams.quality,
+                  n: (bj.params.n as number) || defaultParams.n,
+                } as PresetConfig
+              : defaultParams
+
+            return {
+              id: bj.id,
+              createdAt: new Date(bj.created_at).getTime(),
+              status: bj.status as GenerationJob["status"],
+              intent: bj.intent || "",
+              refinedPrompt: bj.refined_prompt || "",
+              negativePrompt: bj.negative_prompt || "",
+              preset: (bj.preset || "draft") as GenerationPreset,
+              params,
+              model: bj.model,
+              estimatedCostUsd: bj.estimated_cost_usd,
+              actualCostUsd: bj.actual_cost_usd,
+              errorMessage: bj.error_message,
+              fingerprint: bj.fingerprint,
+              isEdit: bj.is_edit,
+              // Note: thumbnailDataUrl and resultImageDataUrl would need to be fetched separately
+              // if we want to display them. For now, we leave them undefined.
+            }
+          })
+
+          set((state) => {
+            // Merge: prefer backend data, add any local-only jobs
+            const localJobs = state.openAIState.generationHistory
+            const backendIds = new Set(backendJobs.map((j) => j.id))
+            const localOnlyJobs = localJobs.filter((j) => !backendIds.has(j.id))
+
+            // Combine and sort by createdAt descending
+            const merged = [...backendJobs, ...localOnlyJobs]
+              .sort((a, b) => b.createdAt - a.createdAt)
+              .slice(0, 100)
+
+            state.openAIState.generationHistory = castDraft(merged)
+          })
+        } catch (e) {
+          console.error("Failed to sync history from backend:", e)
+        }
+      },
+
+      syncHistorySnapshots: async () => {
+        try {
+          const response = await apiFetchHistorySnapshots({ limit: 50 })
+          const snapshots: HistorySnapshot[] = response.snapshots.map(
+            (snapshot: BackendHistorySnapshot) => ({
+              id: snapshot.id,
+              sessionId: snapshot.session_id,
+              payload: snapshot.payload || {},
+              createdAt: new Date(snapshot.created_at).getTime(),
+            })
+          )
+          set((state) => {
+            state.openAIState.historySnapshots = castDraft(snapshots)
+          })
+        } catch (e) {
+          console.error("Failed to sync history snapshots from backend:", e)
+        }
+      },
+
+      saveHistorySnapshot: async (payload?: Record<string, unknown>) => {
+        const { generationHistory, historyFilter } = get().openAIState
+        const snapshotPayload =
+          payload ??
+          ({
+            history: generationHistory.map((job) => ({
+              id: job.id,
+              createdAt: job.createdAt,
+              status: job.status,
+              intent: job.intent,
+              refinedPrompt: job.refinedPrompt,
+              negativePrompt: job.negativePrompt,
+              preset: job.preset,
+              params: job.params,
+              model: job.model,
+              estimatedCostUsd: job.estimatedCostUsd,
+              actualCostUsd: job.actualCostUsd,
+              errorMessage: job.errorMessage,
+              fingerprint: job.fingerprint,
+              isEdit: job.isEdit,
+            })),
+            filter: historyFilter,
+          } satisfies Record<string, unknown>)
+
+        try {
+          const snapshot = await apiCreateHistorySnapshot(snapshotPayload)
+          const mapped: HistorySnapshot = {
+            id: snapshot.id,
+            sessionId: snapshot.session_id,
+            payload: snapshot.payload || {},
+            createdAt: new Date(snapshot.created_at).getTime(),
+          }
+          set((state) => {
+            state.openAIState.historySnapshots.unshift(castDraft(mapped))
+          })
+        } catch (e) {
+          console.error("Failed to save history snapshot:", e)
+        }
+      },
+
+      deleteHistorySnapshot: async (snapshotId: string) => {
+        try {
+          await apiDeleteHistorySnapshot(snapshotId)
+          set((state) => {
+            state.openAIState.historySnapshots =
+              state.openAIState.historySnapshots.filter((s) => s.id !== snapshotId)
+          })
+        } catch (e) {
+          console.error("Failed to delete history snapshot:", e)
+        }
+      },
+
+      clearHistorySnapshots: async () => {
+        try {
+          await apiClearHistorySnapshots()
+          set((state) => {
+            state.openAIState.historySnapshots = []
+          })
+        } catch (e) {
+          console.error("Failed to clear history snapshots:", e)
+        }
       },
 
       rerunJob: async (jobId: string) => {
