@@ -343,7 +343,7 @@ export function SettingsDialog() {
 
   function renderModelSettings() {
     let defaultTab = MODEL_TYPE_INPAINT
-    for (let info of modelInfos) {
+    for (const info of modelInfos) {
       if (model.name === info.name) {
         defaultTab = info.model_type
         if (defaultTab === MODEL_TYPE_DIFFUSERS_SDXL) {

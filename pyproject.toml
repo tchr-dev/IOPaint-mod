@@ -32,4 +32,4 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["wheel", "twine", "pytest-loguru"]
+dev = ["wheel", "twine", "pytest", "pytest-loguru"]

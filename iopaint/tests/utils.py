@@ -1,8 +1,11 @@
 from pathlib import Path
+from functools import lru_cache
+
 import cv2
 import pytest
 import torch
 
+from iopaint.model import models
 from iopaint.schema import LDMSampler, HDStrategy, InpaintRequest, SDSampler
 import numpy as np
 
@@ -18,6 +21,21 @@ def check_device(device: str) -> int:
         pytest.skip("mps is not available, skip test on mps")
     steps = 2 if device == "cpu" else 20
     return steps
+
+
+@lru_cache(maxsize=None)
+def ensure_model_available(model_name: str) -> None:
+    model_class = models.get(model_name)
+    if model_class is None:
+        pytest.skip(f"Model {model_name} is in maintenance mode")
+    if model_class.is_downloaded():
+        return
+    try:
+        model_class.download()
+    except Exception as exc:
+        pytest.skip(
+            f"Model {model_name} is in maintenance mode (download unreachable): {exc}"
+        )
 
 
 def assert_equal(

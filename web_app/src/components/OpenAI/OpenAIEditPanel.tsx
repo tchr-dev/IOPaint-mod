@@ -99,7 +99,6 @@ export function OpenAIEditPanel() {
   const hasPrompt = editPrompt.trim().length > 0
   const isBudgetBlocked = budgetStatus?.status === "blocked"
   const canEdit = hasMask && hasPrompt && !isGenerating && !isBudgetBlocked
-  const canOutpaint = canEdit
   const canVariation =
     !!editSourceImageDataUrl && !isGenerating && !isBudgetBlocked
 

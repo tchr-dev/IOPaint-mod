@@ -1400,11 +1400,16 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
             models = await refreshOpenAIModels(baseUrl)
           }
 
+          const resolvedModels = models ?? []
+
           set((state) => {
-            state.openAIState.openAIModels = models
+            state.openAIState.openAIModels = resolvedModels
             // Set default model if not already selected
-            if (!state.openAIState.selectedOpenAIModel && models.length > 0) {
-              state.openAIState.selectedOpenAIModel = models[0].id
+            if (
+              !state.openAIState.selectedOpenAIModel &&
+              resolvedModels.length > 0
+            ) {
+              state.openAIState.selectedOpenAIModel = resolvedModels[0].id
             }
           })
         } catch (e: any) {

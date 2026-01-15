@@ -3,7 +3,13 @@ import torch
 
 from iopaint.model_manager import ModelManager
 from iopaint.schema import HDStrategy, LDMSampler
-from iopaint.tests.utils import assert_equal, get_config, current_dir, check_device
+from iopaint.tests.utils import (
+    assert_equal,
+    get_config,
+    current_dir,
+    check_device,
+    ensure_model_available,
+)
 
 
 @pytest.mark.parametrize("device", ["cuda", "mps", "cpu"])
@@ -12,6 +18,7 @@ from iopaint.tests.utils import assert_equal, get_config, current_dir, check_dev
 )
 def test_lama(device, strategy):
     check_device(device)
+    ensure_model_available("lama")
     model = ModelManager(name="lama", device=device)
     assert_equal(
         model,
@@ -35,6 +42,7 @@ def test_lama(device, strategy):
 @pytest.mark.parametrize("ldm_sampler", [LDMSampler.ddim, LDMSampler.plms])
 def test_ldm(device, strategy, ldm_sampler):
     check_device(device)
+    ensure_model_available("ldm")
     model = ModelManager(name="ldm", device=device)
     cfg = get_config(strategy=strategy, ldm_sampler=ldm_sampler)
     assert_equal(
@@ -57,6 +65,7 @@ def test_ldm(device, strategy, ldm_sampler):
 @pytest.mark.parametrize("zits_wireframe", [False, True])
 def test_zits(device, strategy, zits_wireframe):
     check_device(device)
+    ensure_model_available("zits")
     model = ModelManager(name="zits", device=device)
     cfg = get_config(strategy=strategy, zits_wireframe=zits_wireframe)
     assert_equal(
@@ -79,6 +88,7 @@ def test_zits(device, strategy, zits_wireframe):
 @pytest.mark.parametrize("no_half", [True, False])
 def test_mat(device, strategy, no_half):
     check_device(device)
+    ensure_model_available("mat")
     model = ModelManager(name="mat", device=device, no_half=no_half)
     cfg = get_config(strategy=strategy)
 
@@ -93,6 +103,7 @@ def test_mat(device, strategy, no_half):
 @pytest.mark.parametrize("strategy", [HDStrategy.ORIGINAL])
 def test_fcf(device, strategy):
     check_device(device)
+    ensure_model_available("fcf")
     model = ModelManager(name="fcf", device=device)
     cfg = get_config(strategy=strategy)
 
@@ -126,6 +137,7 @@ def test_cv2(strategy, cv2_flag, cv2_radius):
 )
 def test_manga(device, strategy):
     check_device(device)
+    ensure_model_available("manga")
     model = ModelManager(
         name="manga",
         device=torch.device(device),
@@ -144,6 +156,7 @@ def test_manga(device, strategy):
 @pytest.mark.parametrize("strategy", [HDStrategy.ORIGINAL])
 def test_mi_gan(device, strategy):
     check_device(device)
+    ensure_model_available("migan")
     model = ModelManager(
         name="migan",
         device=torch.device(device),

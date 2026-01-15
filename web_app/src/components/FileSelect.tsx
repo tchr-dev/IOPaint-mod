@@ -28,7 +28,6 @@ export default function FileSelect(props: FileSelectProps) {
       }
       onSelection(file)
     } catch (e) {
-      // eslint-disable-next-line
       alert(`error: ${(e as any).message}`)
     }
   }

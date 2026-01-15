@@ -163,10 +163,6 @@ const Header = () => {
                   visibility: customMask ? "visible" : "hidden",
                   outline: "none",
                 }}
-                onClick={() => {
-                  if (customMask) {
-                  }
-                }}
               >
                 <IconButton tooltip="Run custom mask">
                   <PlayIcon />

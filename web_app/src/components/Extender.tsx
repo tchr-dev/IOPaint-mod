@@ -125,7 +125,8 @@ const Extender = (props: Props) => {
 
     const moveBottom = () => {
       const newHeight = evData.initHeight + offsetY
-      let [clampedY, clampedHeight] = clampTopBottom(evData.initY, newHeight)
+      const [clampedY, initialHeight] = clampTopBottom(evData.initY, newHeight)
+      let clampedHeight = initialHeight
       if (extenderDirection === ExtenderDirection.xy) {
         if (clampedHeight < Math.abs(clampedY) + imageHeight) {
           clampedHeight = Math.abs(clampedY) + imageHeight
@@ -156,7 +157,8 @@ const Extender = (props: Props) => {
 
     const moveRight = () => {
       const newWidth = evData.initWidth + offsetX
-      let [clampedX, clampedWidth] = clampLeftRight(evData.initX, newWidth)
+      const [clampedX, initialWidth] = clampLeftRight(evData.initX, newWidth)
+      let clampedWidth = initialWidth
       if (extenderDirection === ExtenderDirection.xy) {
         if (clampedWidth < Math.abs(clampedX) + imageWdith) {
           clampedWidth = Math.abs(clampedX) + imageWdith
