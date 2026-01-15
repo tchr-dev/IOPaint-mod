@@ -11,7 +11,7 @@
 | Epic 3 | Storage (SQLite) | ✅ Done | `pending` |
 | Epic 4 | UI/UX Components | ✅ Done | `5c26fe6` |
 | Epic 5 | Runner/Jobs Queue | ✅ Done | `4c18265` |
-| Epic 6 | Testing | ⏳ Pending | — |
+| Epic 6 | Testing | ⏳ In Progress | — |
 
 ---
 
@@ -356,24 +356,25 @@ class JobRunner:
 
 **Goal**: Lock down contracts, prevent regressions in history/budget
 
-**Status**: ⏳ PENDING
+**Status**: ⏳ IN PROGRESS
 
 ### E6.1 Unit Tests
 
-- [ ] Fingerprint determinism
-- [ ] BudgetGuard: block/allow logic
-- [ ] Retry logic: 429/timeout retry, 400 no retry
+- [x] Fingerprint determinism
+- [x] BudgetGuard: block/allow logic
+- [x] Retry logic: 429/timeout retry, 400 no retry
 - [ ] Undo/redo for brush and AI edits
 
 #### Test Files to Create
 
 ```
-iopaint/tests/
-├── test_openai_client.py      # Mock HTTP responses
-├── test_budget_guard.py       # Cap enforcement
-├── test_fingerprint.py        # Determinism checks
-└── test_error_classification.py
+ iopaint/tests/
+ ├── test_budget_guard.py        # Cap enforcement
+ ├── test_dedupe_fingerprint.py  # Determinism checks
+ ├── test_openai_errors.py       # Error classification
+ └── test_openai_client.py       # Mock HTTP responses
 ```
+
 
 ### E6.2 Integration Tests (Mock API)
 
@@ -381,7 +382,13 @@ iopaint/tests/
 - [ ] `/v1/images/edits`: correct mask/params conversion
 - [ ] Budget tracking end-to-end
 
-### E6.3 Playwright E2E (Optional)
+### E6.3 Frontend Tests
+
+- [ ] OpenAI job polling status transitions
+- [ ] Cancel button behavior while queued/running
+- [ ] History filtering for `failed`/`cancelled`
+
+### E6.4 Playwright E2E (Optional)
 
 - [ ] Full flow: load → refine → draft generate → final generate → edit
 - [ ] Budget warning modal interaction
