@@ -77,7 +77,11 @@ export function GenerationHistory({ onClose }: GenerationHistoryProps) {
     if (historyFilter === "all") return true
     if (historyFilter === "succeeded") return job.status === "succeeded"
     if (historyFilter === "failed")
-      return job.status === "failed" || job.status === "blocked_budget"
+      return (
+        job.status === "failed" ||
+        job.status === "blocked_budget" ||
+        job.status === "cancelled"
+      )
     return true
   })
 

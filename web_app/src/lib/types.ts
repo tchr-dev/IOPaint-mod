@@ -239,11 +239,12 @@ export interface BudgetStatus {
  * Job status for generation history tracking
  */
 export type GenerationJobStatus =
-  | "pending"
+  | "queued"
   | "running"
   | "succeeded"
   | "failed"
   | "blocked_budget"
+  | "cancelled"
 
 /**
  * A single generation job in history

@@ -1,4 +1,6 @@
+import base64
 import io
+from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -269,3 +271,33 @@ def test_openai_jobs_cancel(monkeypatch, tmp_path):
     assert cancel_res.status_code == 200
     assert cancel_res.json()["status"] == "cancelled"
     assert job_id in api.job_runner.cancelled
+
+
+def test_openai_jobs_persist_inputs(monkeypatch, tmp_path):
+    client, api = _make_test_client(monkeypatch, tmp_path, with_openai=True)
+    api.job_runner = DummyJobRunner()
+    image_bytes = _make_png_bytes()
+    mask_bytes = _make_png_bytes(color=(0, 0, 0))
+
+    res = client.post(
+        "/api/v1/openai/jobs",
+        json={
+            "tool": "edit",
+            "prompt": "Replace the sky",
+            "model": "gpt-image-1",
+            "image_b64": base64.b64encode(image_bytes).decode("utf-8"),
+            "mask_b64": base64.b64encode(mask_bytes).decode("utf-8"),
+            "n": 1,
+        },
+    )
+
+    assert res.status_code == 200
+    payload = res.json()
+    input_path = Path(tmp_path / "data" / payload["params"]["input_images"][0]["path"])
+    mask_path = Path(tmp_path / "data" / payload["params"]["mask_images"][0]["path"])
+    assert input_path.exists()
+    assert mask_path.exists()
+
+    queued = api.job_runner.submitted[0]
+    assert queued.request.image_b64 is None
+    assert queued.request.mask_b64 is None

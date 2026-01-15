@@ -799,6 +799,98 @@ export async function generateFingerprint(params: {
 }
 
 // ============================================================================
+// Job Queue API (Epic 5)
+// ============================================================================
+
+export interface OpenAIJobSubmitRequest {
+  tool: "generate" | "edit" | "outpaint" | "variation" | "upscale" | "background_remove"
+  prompt?: string
+  model?: string
+  size?: OpenAIImageSize
+  quality?: OpenAIImageQuality
+  n?: number
+  image_b64?: string
+  mask_b64?: string
+  scale?: number
+  mode?: string
+  intent?: string
+  refined_prompt?: string
+  negative_prompt?: string
+  preset?: string
+}
+
+export async function submitOpenAIJob(
+  request: OpenAIJobSubmitRequest,
+  baseUrl?: string
+): Promise<BackendGenerationJob> {
+  const res = await fetch(`${API_ENDPOINT}/openai/jobs`, {
+    method: "POST",
+    headers: {
+      ...withOpenAIHeaders(
+        {
+          "Content-Type": "application/json",
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+export async function getOpenAIJob(
+  jobId: string,
+  baseUrl?: string
+): Promise<BackendGenerationJob> {
+  const res = await fetch(`${API_ENDPOINT}/openai/jobs/${jobId}`, {
+    method: "GET",
+    headers: {
+      ...withOpenAIHeaders(
+        {
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+export async function cancelOpenAIJob(
+  jobId: string,
+  baseUrl?: string
+): Promise<BackendGenerationJob> {
+  const res = await fetch(`${API_ENDPOINT}/openai/jobs/${jobId}/cancel`, {
+    method: "POST",
+    headers: {
+      ...withOpenAIHeaders(
+        {
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.json()
+}
+
+// ============================================================================
 // History API (Epic 3 - Persistent Storage)
 // ============================================================================
 
@@ -877,7 +969,13 @@ export interface CreateHistoryRequest {
  * Parameters for updating a history entry
  */
 export interface UpdateHistoryRequest {
-  status?: "queued" | "running" | "succeeded" | "failed" | "blocked_budget"
+  status?:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "blocked_budget"
+    | "cancelled"
   actual_cost_usd?: number
   error_message?: string
   result_image_id?: string

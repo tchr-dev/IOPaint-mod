@@ -14,7 +14,14 @@ from iopaint.openai_compat.models import (
     EditImageRequest as OpenAIEditRequest,
     CreateVariationRequest as OpenAIVariationRequest,
 )
-from iopaint.storage import GenerationJobUpdate, HistoryStorage, ImageStorage, JobOperation, JobStatus
+from iopaint.storage import (
+    GenerationJobUpdate,
+    HistoryStorage,
+    ImageStorage,
+    InputStorage,
+    JobOperation,
+    JobStatus,
+)
 
 from .models import JobSubmitRequest, JobTool
 
@@ -23,9 +30,8 @@ from .models import JobSubmitRequest, JobTool
 class QueuedJob:
     """In-memory queued job payload.
 
-    This keeps large inputs (images/masks) in memory only. The DB stores
-    lightweight metadata in generation_jobs.params so we can swap in a
-    persistent input store later without migrating heavy blobs.
+    Input metadata is stored in generation_jobs.params while the binary
+    inputs themselves live in the input storage directory.
     """
 
     job_id: str
@@ -46,11 +52,13 @@ class JobRunner:
         self,
         history_storage: HistoryStorage,
         image_storage: ImageStorage,
+        input_storage: InputStorage,
         openai_client,
         budget_client: Optional[BudgetAwareOpenAIClient],
     ) -> None:
         self.history_storage = history_storage
         self.image_storage = image_storage
+        self.input_storage = input_storage
         self.openai_client = openai_client
         self.budget_client = budget_client
         self.queue: asyncio.Queue[QueuedJob] = asyncio.Queue()
@@ -185,6 +193,26 @@ class JobRunner:
         # a per-job client here.
         return self.openai_client
 
+    def _load_input_bytes(
+        self, job: QueuedJob, key: str, fallback_b64: Optional[str]
+    ) -> Optional[bytes]:
+        job_record = self.history_storage.get_job(job.job_id)
+        if job_record and job_record.params:
+            entries = job_record.params.get(key)
+            if isinstance(entries, list) and entries:
+                entry = entries[0]
+                if isinstance(entry, dict):
+                    path = entry.get("path")
+                    if path:
+                        payload = self.input_storage.load_input_bytes(path)
+                        if payload is not None:
+                            return payload
+
+        if fallback_b64:
+            return base64.b64decode(fallback_b64)
+
+        return None
+
     def _run_openai_generate(self, job: QueuedJob) -> bytes:
         if not job.request.prompt:
             raise ValueError("Prompt is required for generate jobs")
@@ -207,11 +235,23 @@ class JobRunner:
     def _run_openai_edit(self, job: QueuedJob) -> bytes:
         if not job.request.prompt:
             raise ValueError("Prompt is required for edit jobs")
-        if not job.request.image_b64 or not job.request.mask_b64:
-            raise ValueError("Edit jobs require image and mask inputs")
 
-        image_bytes = base64.b64decode(job.request.image_b64)
-        mask_bytes = base64.b64decode(job.request.mask_b64)
+        image_bytes = self._load_input_bytes(
+            job,
+            "input_images",
+            job.request.image_b64,
+        )
+        if not image_bytes:
+            raise ValueError("Edit jobs require image input")
+
+        mask_bytes = self._load_input_bytes(
+            job,
+            "mask_images",
+            job.request.mask_b64,
+        )
+        if not mask_bytes:
+            raise ValueError("Edit jobs require mask input")
+
         request = OpenAIEditRequest(
             image=image_bytes,
             mask=mask_bytes,
@@ -231,10 +271,14 @@ class JobRunner:
         return client.edit_image(request)
 
     def _run_openai_variation(self, job: QueuedJob) -> bytes:
-        if not job.request.image_b64:
+        image_bytes = self._load_input_bytes(
+            job,
+            "input_images",
+            job.request.image_b64,
+        )
+        if not image_bytes:
             raise ValueError("Variation jobs require image input")
 
-        image_bytes = base64.b64decode(job.request.image_b64)
         request = OpenAIVariationRequest(
             image=image_bytes,
             n=job.request.n,
@@ -251,10 +295,14 @@ class JobRunner:
         return client.create_variation(request)
 
     def _run_openai_upscale(self, job: QueuedJob) -> bytes:
-        if not job.request.image_b64:
+        image_bytes = self._load_input_bytes(
+            job,
+            "input_images",
+            job.request.image_b64,
+        )
+        if not image_bytes:
             raise ValueError("Upscale jobs require image input")
 
-        image_bytes = base64.b64decode(job.request.image_b64)
         mask_bytes = self._full_mask(image_bytes)
         request = OpenAIEditRequest(
             image=image_bytes,
@@ -276,10 +324,14 @@ class JobRunner:
         return client.edit_image(request)
 
     def _run_openai_background_remove(self, job: QueuedJob) -> bytes:
-        if not job.request.image_b64:
+        image_bytes = self._load_input_bytes(
+            job,
+            "input_images",
+            job.request.image_b64,
+        )
+        if not image_bytes:
             raise ValueError("Background remove jobs require image input")
 
-        image_bytes = base64.b64decode(job.request.image_b64)
         request = OpenAIEditRequest(
             image=image_bytes,
             mask=self._full_mask(image_bytes),

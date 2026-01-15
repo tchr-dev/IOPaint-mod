@@ -196,17 +196,20 @@ class HistoryStorage:
 
     # --- Job Operations ---
 
-    def save_job(self, session_id: str, job: GenerationJobCreate) -> GenerationJob:
+    def save_job(
+        self, session_id: str, job: GenerationJobCreate, job_id: Optional[str] = None
+    ) -> GenerationJob:
         """Save a new generation job.
 
         Args:
             session_id: Session identifier.
             job: Job creation data.
+            job_id: Optional pre-generated job ID.
 
         Returns:
             The created job with ID.
         """
-        job_id = str(uuid.uuid4())
+        resolved_job_id = job_id or str(uuid.uuid4())
         now = datetime.utcnow()
 
         with self._transaction() as cursor:
@@ -219,7 +222,7 @@ class HistoryStorage:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    job_id,
+                    resolved_job_id,
                     session_id,
                     JobStatus.QUEUED.value,
                     job.operation.value,
@@ -237,7 +240,7 @@ class HistoryStorage:
             )
 
         return GenerationJob(
-            id=job_id,
+            id=resolved_job_id,
             session_id=session_id,
             status=JobStatus.QUEUED,
             operation=job.operation,

@@ -32,6 +32,7 @@ Usage:
 
 from .history import HistoryStorage
 from .images import ImageStorage
+from .inputs import InputStorage
 from .model_cache import ModelCacheStorage
 from .models import (
     GenerationJob,
@@ -51,6 +52,7 @@ __all__ = [
     "HistoryStorage",
     "ImageStorage",
     "ModelCacheStorage",
+    "InputStorage",
     "GenerationJob",
     "GenerationJobCreate",
     "GenerationJobUpdate",

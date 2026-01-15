@@ -1,10 +1,13 @@
 import asyncio
 import base64
+import binascii
 import io
-import os
-import threading
+import json
 import time
+import threading
 import traceback
+import uuid
+
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
@@ -97,19 +100,22 @@ from iopaint.budget import (
 
 # Storage imports (Epic 3)
 from iopaint.storage import (
-    HistoryStorage,
-    ImageStorage,
-    ModelCacheStorage,
     GenerationJob,
     GenerationJobCreate,
     GenerationJobUpdate,
-    JobStatus,
-    JobOperation,
     HistoryListResponse,
     HistorySnapshot,
     HistorySnapshotCreate,
     HistorySnapshotListResponse,
+    HistoryStorage,
+    ImageStorage,
+    ImageUploadResponse,
+    InputStorage,
+    JobOperation,
+    JobStatus,
+    ModelCacheStorage,
 )
+
 
 # Runner imports (Epic 5)
 from iopaint.runner import JobRunner, JobSubmitRequest, JobTool, QueuedJob
@@ -240,6 +246,7 @@ class Api:
             data_dir=self.budget_config.data_dir,
             db_path=self.budget_config.db_path,
         )
+        self.input_storage = InputStorage(self.budget_config.data_dir)
         self.model_cache_storage = ModelCacheStorage(
             db_path=self.budget_config.db_path,
         )
@@ -252,6 +259,7 @@ class Api:
             self.job_runner = JobRunner(
                 history_storage=self.history_storage,
                 image_storage=self.image_storage,
+                input_storage=self.input_storage,
                 openai_client=self.openai_client,
                 budget_client=self.openai_budget_client,
             )
@@ -792,8 +800,11 @@ class Api:
             raise HTTPException(status_code=503, detail="Job runner not configured")
 
         session_id = self._get_session_id(request)
+        job_id = str(uuid.uuid4())
         operation = JobOperation(job_request.tool.value)
+        input_params = self._persist_job_inputs(job_id, job_request)
         params = self._build_job_params(job_request)
+        params.update(input_params)
         created_job = GenerationJobCreate(
             operation=operation,
             model=job_request.model or self.openai_config.model,
@@ -805,7 +816,11 @@ class Api:
             estimated_cost_usd=None,
             is_edit=operation != JobOperation.GENERATE,
         )
-        stored_job = self.history_storage.save_job(session_id=session_id, job=created_job)
+        stored_job = self.history_storage.save_job(
+            session_id=session_id,
+            job=created_job,
+            job_id=job_id,
+        )
         queued_job = QueuedJob(
             job_id=stored_job.id,
             session_id=session_id,
@@ -872,6 +887,43 @@ class Api:
             }
         )
         params["tool"] = job_request.tool.value
+        return params
+
+    def _persist_job_inputs(
+        self, job_id: str, job_request: JobSubmitRequest
+    ) -> Dict[str, object]:
+        input_images = []
+        mask_images = []
+
+        if job_request.image_b64:
+            try:
+                image_bytes = base64.b64decode(job_request.image_b64)
+            except (binascii.Error, ValueError) as exc:
+                raise HTTPException(
+                    status_code=422, detail="Invalid image_b64 payload"
+                ) from exc
+            input_images.append(
+                self.input_storage.save_input_bytes(job_id, image_bytes, "image")
+            )
+            job_request.image_b64 = None
+
+        if job_request.mask_b64:
+            try:
+                mask_bytes = base64.b64decode(job_request.mask_b64)
+            except (binascii.Error, ValueError) as exc:
+                raise HTTPException(
+                    status_code=422, detail="Invalid mask_b64 payload"
+                ) from exc
+            mask_images.append(
+                self.input_storage.save_input_bytes(job_id, mask_bytes, "mask")
+            )
+            job_request.mask_b64 = None
+
+        params: Dict[str, object] = {}
+        if input_images:
+            params["input_images"] = input_images
+        if mask_images:
+            params["mask_images"] = mask_images
         return params
 
     def _openai_cache_provider(self, config: OpenAIConfig) -> str:

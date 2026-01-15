@@ -42,6 +42,7 @@ import {
 import {
   blobToImage,
   canvasToImage,
+  convertToBase64,
   dataURItoBlob,
   generateMask,
   loadImage,
@@ -52,16 +53,15 @@ import {
   listOpenAIModelsCached,
   refreshOpenAIModels,
   refinePrompt as apiRefinePrompt,
-  generateImageAsDataUrl,
-  editImageAsDataUrl,
-  outpaintImageAsDataUrl,
-  createVariationAsDataUrl,
+  submitOpenAIJob,
+  getOpenAIJob,
+  cancelOpenAIJob,
+  fetchStoredImageAsDataUrl,
   upscaleImage,
   removeBackground,
   estimateGenerationCost,
   getOpenAIBudgetStatus,
   createThumbnail,
-  generateFingerprint,
   resolveOpenAIBaseUrl,
   // History API (Epic 3)
   fetchHistory as apiFetchHistory,
@@ -78,6 +78,158 @@ import {
   OpenAIApiError,
 } from "./openai-api"
 import { toast } from "@/components/ui/use-toast"
+
+const OPENAI_JOB_POLL_INTERVAL_MS = 5000
+const openAIJobPollers = new Map<string, number>()
+
+const toBase64Payload = async (blob: Blob): Promise<string> => {
+  const dataUrl = await convertToBase64(blob)
+  return dataUrl.split(",")[1] || ""
+}
+
+const mapBackendJobToFrontend = (job: BackendGenerationJob): GenerationJob => {
+  const defaultParams: PresetConfig = {
+    size: "1024x1024",
+    quality: "standard",
+    n: 1,
+  }
+  const params = job.params
+    ? ({
+        size: (job.params.size as string) || defaultParams.size,
+        quality: (job.params.quality as string) || defaultParams.quality,
+        n: (job.params.n as number) || defaultParams.n,
+      } as PresetConfig)
+    : defaultParams
+
+  return {
+    id: job.id,
+    createdAt: new Date(job.created_at).getTime(),
+    status: job.status as GenerationJob["status"],
+    intent: job.intent || "",
+    refinedPrompt: job.refined_prompt || "",
+    negativePrompt: job.negative_prompt || "",
+    preset: (job.preset || "draft") as GenerationPreset,
+    params,
+    model: job.model,
+    estimatedCostUsd: job.estimated_cost_usd,
+    actualCostUsd: job.actual_cost_usd,
+    errorMessage: job.error_message,
+    fingerprint: job.fingerprint,
+    isEdit: job.is_edit,
+  }
+}
+
+const startOpenAIJobPolling = (
+  jobId: string,
+  baseUrl: string | undefined,
+  get: () => AppState & AppAction,
+  set: (fn: (state: AppState & AppAction) => void) => void,
+  options: { loadIntoEditor: boolean }
+) => {
+  if (openAIJobPollers.has(jobId)) return
+
+  const poll = async () => {
+    try {
+      const backendJob = await getOpenAIJob(jobId, baseUrl)
+      const mappedJob = mapBackendJobToFrontend(backendJob)
+      const existingJob = get().openAIState.generationHistory.find(
+        (job) => job.id === jobId
+      )
+
+      if (!existingJob) {
+        get().addToHistory(mappedJob, { skipBackend: true })
+      } else {
+        get().updateHistoryJob(
+          jobId,
+          {
+            status: mappedJob.status,
+            actualCostUsd: mappedJob.actualCostUsd,
+            errorMessage: mappedJob.errorMessage,
+          },
+          { skipBackend: true }
+        )
+      }
+
+      const isTerminal = [
+        "succeeded",
+        "failed",
+        "blocked_budget",
+        "cancelled",
+      ].includes(mappedJob.status)
+
+      if (isTerminal) {
+        if (backendJob.result_image_id) {
+          const resultDataUrl = await fetchStoredImageAsDataUrl(
+            backendJob.result_image_id
+          )
+          const thumbnail = await createThumbnail(resultDataUrl, 128)
+          get().updateHistoryJob(
+            jobId,
+            {
+              resultImageDataUrl: resultDataUrl,
+              thumbnailDataUrl: thumbnail,
+            },
+            { skipBackend: true }
+          )
+
+          if (options.loadIntoEditor) {
+            const newRender = new Image()
+            await loadImage(newRender, resultDataUrl)
+            get().setImageSize(newRender.width, newRender.height)
+            set((state) => {
+              state.editorState.renders.push(castDraft(newRender))
+              state.editorState.curLineGroup = []
+              state.editorState.extraMasks = []
+            })
+          }
+        }
+
+        if (mappedJob.status === "succeeded") {
+          toast({
+            description: "Job completed successfully!",
+          })
+        } else if (mappedJob.status === "cancelled") {
+          toast({
+            description: "Job cancelled.",
+          })
+        } else if (mappedJob.status === "blocked_budget") {
+          toast({
+            variant: "destructive",
+            description: "Job blocked by budget limits.",
+          })
+        } else {
+          toast({
+            variant: "destructive",
+            description: mappedJob.errorMessage
+              ? `Job failed: ${mappedJob.errorMessage}`
+              : "Job failed.",
+          })
+        }
+
+        get().refreshBudgetStatus()
+
+        if (get().openAIState.currentJobId === jobId) {
+          set((state) => {
+            state.openAIState.currentJobId = null
+            state.openAIState.isOpenAIGenerating = false
+          })
+        }
+
+        const intervalId = openAIJobPollers.get(jobId)
+        if (intervalId) {
+          window.clearInterval(intervalId)
+        }
+        openAIJobPollers.delete(jobId)
+      }
+    } catch (error) {
+      console.error("Failed to poll job:", error)
+    }
+  }
+
+  void poll()
+  const intervalId = window.setInterval(poll, OPENAI_JOB_POLL_INTERVAL_MS)
+  openAIJobPollers.set(jobId, intervalId)
+}
 
 type FileManagerState = {
   sortBy: SortBy
@@ -262,8 +414,12 @@ type OpenAIAction = {
   cancelPendingGeneration: () => void
 
   // History management (with backend sync - Epic 3)
-  addToHistory: (job: GenerationJob) => void
-  updateHistoryJob: (id: string, updates: Partial<GenerationJob>) => void
+  addToHistory: (job: GenerationJob, options?: { skipBackend?: boolean }) => void
+  updateHistoryJob: (
+    id: string,
+    updates: Partial<GenerationJob>,
+    options?: { skipBackend?: boolean }
+  ) => void
   removeFromHistory: (id: string) => void
   clearHistory: () => void
   rerunJob: (jobId: string) => Promise<void>
@@ -283,6 +439,7 @@ type OpenAIAction = {
   runOpenAIEdit: () => Promise<void>
   runOpenAIOutpaint: () => Promise<void>
   runOpenAIVariation: () => Promise<void>
+  cancelOpenAIJob: (jobId: string) => Promise<void>
 }
 
 type AppState = {
@@ -1584,8 +1741,15 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
       },
 
       confirmOpenAIGeneration: async () => {
-        const { pendingGenerationRequest, openAIIntent, selectedPreset, currentCostEstimate, selectedOpenAIModel } =
-          get().openAIState
+        const {
+          pendingGenerationRequest,
+          openAIIntent,
+          selectedPreset,
+          currentCostEstimate,
+          selectedOpenAIModel,
+          openAIRefinedPrompt,
+          openAINegativePrompt,
+        } = get().openAIState
 
         if (!pendingGenerationRequest) return
 
@@ -1594,73 +1758,47 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           state.openAIState.isOpenAIGenerating = true
         })
 
-        const jobId = crypto.randomUUID()
-        const config = get().getActivePresetConfig()
-
-        // Create job entry in history
-        const job: GenerationJob = {
-          id: jobId,
-          createdAt: Date.now(),
-          status: "running",
-          intent: openAIIntent,
-          refinedPrompt: pendingGenerationRequest.prompt,
-          negativePrompt: pendingGenerationRequest.negativePrompt || "",
-          preset: selectedPreset,
-          params: config,
-          model: selectedOpenAIModel,
-          estimatedCostUsd: currentCostEstimate?.estimatedCostUsd,
-        }
-
-        get().addToHistory(job)
-        set((state) => {
-          state.openAIState.currentJobId = jobId
-        })
-
         try {
           const baseUrl = resolveOpenAIBaseUrl(
             get().settings.openAIProvider
           )
-          const resultDataUrl = await generateImageAsDataUrl(
-            pendingGenerationRequest,
+          const response = await submitOpenAIJob(
+            {
+              tool: "generate",
+              prompt: pendingGenerationRequest.prompt,
+              n: pendingGenerationRequest.n,
+              size: pendingGenerationRequest.size,
+              quality: pendingGenerationRequest.quality,
+              model: selectedOpenAIModel,
+              intent: openAIIntent,
+              refined_prompt: openAIRefinedPrompt,
+              negative_prompt: openAINegativePrompt,
+              preset: selectedPreset,
+            },
             baseUrl
           )
-          const thumbnail = await createThumbnail(resultDataUrl, 128)
-          const fingerprint = await generateFingerprint({
-            prompt: pendingGenerationRequest.prompt,
-            negativePrompt: pendingGenerationRequest.negativePrompt,
-            model: selectedOpenAIModel,
-            size: config.size,
-            quality: config.quality,
-            n: config.n,
+
+          const job = mapBackendJobToFrontend(response)
+          job.estimatedCostUsd = currentCostEstimate?.estimatedCostUsd
+          get().addToHistory(job, { skipBackend: true })
+
+          set((state) => {
+            state.openAIState.currentJobId = job.id
+            state.openAIState.pendingGenerationRequest = null
           })
 
-          get().updateHistoryJob(jobId, {
-            status: "succeeded",
-            resultImageDataUrl: resultDataUrl,
-            thumbnailDataUrl: thumbnail,
-            fingerprint,
+          startOpenAIJobPolling(job.id, baseUrl, get, set, {
+            loadIntoEditor: false,
           })
-
-          toast({
-            description: "Image generated successfully!",
-          })
-
-          // Refresh budget status
-          get().refreshBudgetStatus()
         } catch (e: any) {
-          get().updateHistoryJob(jobId, {
-            status: "failed",
-            errorMessage: e.message,
-          })
-          toast({
-            variant: "destructive",
-            description: `Generation failed: ${e.message}`,
-          })
-        } finally {
           set((state) => {
             state.openAIState.isOpenAIGenerating = false
             state.openAIState.pendingGenerationRequest = null
             state.openAIState.currentJobId = null
+          })
+          toast({
+            variant: "destructive",
+            description: `Generation failed: ${e.message}`,
           })
         }
       },
@@ -1673,7 +1811,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
       },
 
       // History management (with backend sync - Epic 3)
-      addToHistory: (job: GenerationJob) => {
+      addToHistory: (job: GenerationJob, options?: { skipBackend?: boolean }) => {
         // Add to local state immediately
         set((state) => {
           state.openAIState.generationHistory.unshift(castDraft(job))
@@ -1682,6 +1820,10 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
             state.openAIState.generationHistory.pop()
           }
         })
+
+        if (options?.skipBackend) {
+          return
+        }
 
         // Sync to backend (fire-and-forget, errors logged but not blocking)
         apiCreateHistoryJob({
@@ -1698,7 +1840,11 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         }).catch((e) => console.error("Failed to sync job to backend:", e))
       },
 
-      updateHistoryJob: (id: string, updates: Partial<GenerationJob>) => {
+      updateHistoryJob: (
+        id: string,
+        updates: Partial<GenerationJob>,
+        options?: { skipBackend?: boolean }
+      ) => {
         set((state) => {
           const index = state.openAIState.generationHistory.findIndex(
             (j) => j.id === id
@@ -1711,11 +1857,17 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           }
         })
 
+        if (options?.skipBackend) {
+          return
+        }
+
         // Sync status updates to backend
         const backendUpdates: Record<string, unknown> = {}
         if (updates.status) backendUpdates.status = updates.status
-        if (updates.actualCostUsd !== undefined) backendUpdates.actual_cost_usd = updates.actualCostUsd
-        if (updates.errorMessage !== undefined) backendUpdates.error_message = updates.errorMessage
+        if (updates.actualCostUsd !== undefined)
+          backendUpdates.actual_cost_usd = updates.actualCostUsd
+        if (updates.errorMessage !== undefined)
+          backendUpdates.error_message = updates.errorMessage
 
         if (Object.keys(backendUpdates).length > 0) {
           apiUpdateHistoryJob(id, backendUpdates as any).catch((e) =>
@@ -1753,36 +1905,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           const response = await apiFetchHistory({ limit: 100 })
 
           // Convert backend format to frontend GenerationJob format
-          const backendJobs: GenerationJob[] = response.jobs.map((bj: BackendGenerationJob) => {
-            // Parse params from backend or use defaults
-            const defaultParams: PresetConfig = { size: "1024x1024", quality: "standard", n: 1 }
-            const params = bj.params
-              ? {
-                  size: (bj.params.size as string) || defaultParams.size,
-                  quality: (bj.params.quality as string) || defaultParams.quality,
-                  n: (bj.params.n as number) || defaultParams.n,
-                } as PresetConfig
-              : defaultParams
-
-            return {
-              id: bj.id,
-              createdAt: new Date(bj.created_at).getTime(),
-              status: bj.status as GenerationJob["status"],
-              intent: bj.intent || "",
-              refinedPrompt: bj.refined_prompt || "",
-              negativePrompt: bj.negative_prompt || "",
-              preset: (bj.preset || "draft") as GenerationPreset,
-              params,
-              model: bj.model,
-              estimatedCostUsd: bj.estimated_cost_usd,
-              actualCostUsd: bj.actual_cost_usd,
-              errorMessage: bj.error_message,
-              fingerprint: bj.fingerprint,
-              isEdit: bj.is_edit,
-              // Note: thumbnailDataUrl and resultImageDataUrl would need to be fetched separately
-              // if we want to display them. For now, we leave them undefined.
-            }
-          })
+          const backendJobs: GenerationJob[] = response.jobs.map(mapBackendJobToFrontend)
 
           set((state) => {
             // Merge: prefer backend data, add any local-only jobs
@@ -1941,8 +2064,11 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
       runOpenAIEdit: async () => {
         const {
           openAIRefinedPrompt,
+          openAINegativePrompt,
           selectedOpenAIModel,
           editSourceImageDataUrl,
+          openAIIntent,
+          selectedPreset,
         } = get().openAIState
         const { imageWidth, imageHeight } = get()
         const { curLineGroup, extraMasks } = get().editorState
@@ -1979,7 +2105,6 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           const baseUrl = resolveOpenAIBaseUrl(
             get().settings.openAIProvider
           )
-          // Generate mask from current strokes
           const maskCanvas = generateMask(
             imageWidth,
             imageHeight,
@@ -1989,69 +2114,48 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           )
           const maskBlob = dataURItoBlob(maskCanvas.toDataURL())
 
-          // Convert source image to blob
           const sourceResponse = await fetch(editSourceImageDataUrl)
           const sourceBlob = await sourceResponse.blob()
 
           const config = get().getActivePresetConfig()
+          const image_b64 = await toBase64Payload(sourceBlob)
+          const mask_b64 = await toBase64Payload(maskBlob)
 
-          const resultDataUrl = await editImageAsDataUrl(
-            sourceBlob,
-            maskBlob,
-            openAIRefinedPrompt,
+          const response = await submitOpenAIJob(
             {
+              tool: "edit",
+              prompt: openAIRefinedPrompt,
               model: selectedOpenAIModel,
               size: config.size,
               quality: config.quality,
+              n: config.n,
+              image_b64,
+              mask_b64,
+              intent: openAIIntent,
+              refined_prompt: openAIRefinedPrompt,
+              negative_prompt: openAINegativePrompt,
+              preset: selectedPreset,
             },
             baseUrl
           )
 
-          // Add to history
-          const jobId = crypto.randomUUID()
-          const thumbnail = await createThumbnail(resultDataUrl, 128)
-
-          const job: GenerationJob = {
-            id: jobId,
-            createdAt: Date.now(),
-            status: "succeeded",
-            intent: get().openAIState.openAIIntent,
-            refinedPrompt: openAIRefinedPrompt,
-            negativePrompt: "",
-            preset: get().openAIState.selectedPreset,
-            params: config,
-            model: selectedOpenAIModel,
-            resultImageDataUrl: resultDataUrl,
-            thumbnailDataUrl: thumbnail,
-            isEdit: true,
-          }
-
-          get().addToHistory(job)
-
-          // Load result into editor
-          const newRender = new Image()
-          await loadImage(newRender, resultDataUrl)
-          get().setImageSize(newRender.width, newRender.height)
+          const job = mapBackendJobToFrontend(response)
+          get().addToHistory(job, { skipBackend: true })
 
           set((state) => {
-            state.editorState.renders.push(castDraft(newRender))
-            state.editorState.curLineGroup = []
-            state.editorState.extraMasks = []
+            state.openAIState.currentJobId = job.id
           })
 
-          toast({
-            description: "Image edited successfully!",
+          startOpenAIJobPolling(job.id, baseUrl, get, set, {
+            loadIntoEditor: true,
           })
-
-          get().refreshBudgetStatus()
         } catch (e: any) {
+          set((state) => {
+            state.openAIState.isOpenAIGenerating = false
+          })
           toast({
             variant: "destructive",
             description: `Edit failed: ${e.message}`,
-          })
-        } finally {
-          set((state) => {
-            state.openAIState.isOpenAIGenerating = false
           })
         }
       },
@@ -2059,8 +2163,11 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
       runOpenAIOutpaint: async () => {
         const {
           openAIRefinedPrompt,
+          openAINegativePrompt,
           selectedOpenAIModel,
           editSourceImageDataUrl,
+          openAIIntent,
+          selectedPreset,
         } = get().openAIState
         const { imageWidth, imageHeight } = get()
         const { curLineGroup, extraMasks } = get().editorState
@@ -2110,62 +2217,44 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           const sourceBlob = await sourceResponse.blob()
 
           const config = get().getActivePresetConfig()
+          const image_b64 = await toBase64Payload(sourceBlob)
+          const mask_b64 = await toBase64Payload(maskBlob)
 
-          const resultDataUrl = await outpaintImageAsDataUrl(
-            sourceBlob,
-            maskBlob,
-            openAIRefinedPrompt,
+          const response = await submitOpenAIJob(
             {
+              tool: "outpaint",
+              prompt: openAIRefinedPrompt,
               model: selectedOpenAIModel,
               size: config.size,
               quality: config.quality,
+              n: config.n,
+              image_b64,
+              mask_b64,
+              intent: openAIIntent,
+              refined_prompt: openAIRefinedPrompt,
+              negative_prompt: openAINegativePrompt,
+              preset: selectedPreset,
             },
             baseUrl
           )
 
-          const jobId = crypto.randomUUID()
-          const thumbnail = await createThumbnail(resultDataUrl, 128)
-
-          const job: GenerationJob = {
-            id: jobId,
-            createdAt: Date.now(),
-            status: "succeeded",
-            intent: get().openAIState.openAIIntent,
-            refinedPrompt: openAIRefinedPrompt,
-            negativePrompt: "",
-            preset: get().openAIState.selectedPreset,
-            params: config,
-            model: selectedOpenAIModel,
-            resultImageDataUrl: resultDataUrl,
-            thumbnailDataUrl: thumbnail,
-            isEdit: true,
-          }
-
-          get().addToHistory(job)
-
-          const newRender = new Image()
-          await loadImage(newRender, resultDataUrl)
-          get().setImageSize(newRender.width, newRender.height)
+          const job = mapBackendJobToFrontend(response)
+          get().addToHistory(job, { skipBackend: true })
 
           set((state) => {
-            state.editorState.renders.push(castDraft(newRender))
-            state.editorState.curLineGroup = []
-            state.editorState.extraMasks = []
+            state.openAIState.currentJobId = job.id
           })
 
-          toast({
-            description: "Outpaint completed successfully!",
+          startOpenAIJobPolling(job.id, baseUrl, get, set, {
+            loadIntoEditor: true,
           })
-
-          get().refreshBudgetStatus()
         } catch (e: any) {
+          set((state) => {
+            state.openAIState.isOpenAIGenerating = false
+          })
           toast({
             variant: "destructive",
             description: `Outpaint failed: ${e.message}`,
-          })
-        } finally {
-          set((state) => {
-            state.openAIState.isOpenAIGenerating = false
           })
         }
       },
@@ -2176,6 +2265,8 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           editSourceImageDataUrl,
           openAIIntent,
           openAIRefinedPrompt,
+          selectedPreset,
+          openAINegativePrompt,
         } = get().openAIState
 
         if (!editSourceImageDataUrl) {
@@ -2197,58 +2288,77 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           const sourceResponse = await fetch(editSourceImageDataUrl)
           const sourceBlob = await sourceResponse.blob()
           const config = get().getActivePresetConfig()
+          const image_b64 = await toBase64Payload(sourceBlob)
 
-          const resultDataUrl = await createVariationAsDataUrl(
-            sourceBlob,
+          const response = await submitOpenAIJob(
             {
+              tool: "variation",
+              prompt: openAIRefinedPrompt || "Variation",
               model: selectedOpenAIModel,
               size: config.size,
+              n: config.n,
+              image_b64,
+              intent: openAIIntent || "Variation",
+              refined_prompt: openAIRefinedPrompt || "Variation",
+              negative_prompt: openAINegativePrompt,
+              preset: selectedPreset,
             },
             baseUrl
           )
 
-          const jobId = crypto.randomUUID()
-          const thumbnail = await createThumbnail(resultDataUrl, 128)
-
-          const job: GenerationJob = {
-            id: jobId,
-            createdAt: Date.now(),
-            status: "succeeded",
-            intent: openAIIntent || "Variation",
-            refinedPrompt: openAIRefinedPrompt || "Variation",
-            negativePrompt: "",
-            preset: get().openAIState.selectedPreset,
-            params: config,
-            model: selectedOpenAIModel,
-            resultImageDataUrl: resultDataUrl,
-            thumbnailDataUrl: thumbnail,
-          }
-
-          get().addToHistory(job)
-
-          const newRender = new Image()
-          await loadImage(newRender, resultDataUrl)
-          get().setImageSize(newRender.width, newRender.height)
+          const job = mapBackendJobToFrontend(response)
+          get().addToHistory(job, { skipBackend: true })
 
           set((state) => {
-            state.editorState.renders.push(castDraft(newRender))
-            state.editorState.curLineGroup = []
-            state.editorState.extraMasks = []
+            state.openAIState.currentJobId = job.id
           })
 
-          toast({
-            description: "Variation created successfully!",
+          startOpenAIJobPolling(job.id, baseUrl, get, set, {
+            loadIntoEditor: true,
           })
-
-          get().refreshBudgetStatus()
         } catch (e: any) {
+          set((state) => {
+            state.openAIState.isOpenAIGenerating = false
+          })
           toast({
             variant: "destructive",
             description: `Variation failed: ${e.message}`,
           })
-        } finally {
-          set((state) => {
-            state.openAIState.isOpenAIGenerating = false
+        }
+      },
+
+      cancelOpenAIJob: async (jobId: string) => {
+        try {
+          const baseUrl = resolveOpenAIBaseUrl(
+            get().settings.openAIProvider
+          )
+          const response = await cancelOpenAIJob(jobId, baseUrl)
+          const job = mapBackendJobToFrontend(response)
+          get().updateHistoryJob(
+            jobId,
+            {
+              status: job.status,
+              errorMessage: job.errorMessage,
+            },
+            { skipBackend: true }
+          )
+
+          const intervalId = openAIJobPollers.get(jobId)
+          if (intervalId) {
+            window.clearInterval(intervalId)
+          }
+          openAIJobPollers.delete(jobId)
+
+          if (get().openAIState.currentJobId === jobId) {
+            set((state) => {
+              state.openAIState.currentJobId = null
+              state.openAIState.isOpenAIGenerating = false
+            })
+          }
+        } catch (e: any) {
+          toast({
+            variant: "destructive",
+            description: `Cancel failed: ${e.message}`,
           })
         }
       },

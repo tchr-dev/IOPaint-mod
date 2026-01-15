@@ -25,6 +25,7 @@ import {
   ExternalLink,
   ImageIcon,
   Edit3,
+  Ban,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -44,11 +45,14 @@ interface HistoryItemProps {
 }
 
 export function HistoryItem({ job, onOpenInEditor }: HistoryItemProps) {
-  const [copyJobPrompt, rerunJob, removeFromHistory] = useStore((state) => [
-    state.copyJobPrompt,
-    state.rerunJob,
-    state.removeFromHistory,
-  ])
+  const [copyJobPrompt, rerunJob, removeFromHistory, cancelOpenAIJob] = useStore(
+    (state) => [
+      state.copyJobPrompt,
+      state.rerunJob,
+      state.removeFromHistory,
+      state.cancelOpenAIJob,
+    ]
+  )
 
   const formatCost = (cost?: number) => {
     if (!cost) return null
@@ -151,7 +155,17 @@ export function HistoryItem({ job, onOpenInEditor }: HistoryItemProps) {
               Copy Prompt
             </DropdownMenuItem>
 
-            {job.status !== "running" && (
+            {(job.status === "queued" || job.status === "running") && (
+              <DropdownMenuItem
+                onClick={() => cancelOpenAIJob(job.id)}
+                className="gap-2"
+              >
+                <Ban className="h-4 w-4" />
+                Cancel
+              </DropdownMenuItem>
+            )}
+
+            {job.status !== "running" && job.status !== "queued" && (
               <DropdownMenuItem
                 onClick={() => rerunJob(job.id)}
                 className="gap-2"

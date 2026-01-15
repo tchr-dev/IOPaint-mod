@@ -10,7 +10,7 @@
 | Epic 2 | Budget Safety | ✅ Done | `18f24e3` |
 | Epic 3 | Storage (SQLite) | ✅ Done | `pending` |
 | Epic 4 | UI/UX Components | ✅ Done | `5c26fe6` |
-| Epic 5 | Runner/Jobs Queue | ⏳ Pending | — |
+| Epic 5 | Runner/Jobs Queue | ✅ Done | pending |
 | Epic 6 | Testing | ⏳ Pending | — |
 
 ---
@@ -301,16 +301,16 @@ openAIState: {
 
 **Goal**: Non-blocking UI with managed job pipeline
 
-**Status**: ⏳ PENDING
+**Status**: ✅ COMPLETE
 
 ### E5.1 Job Runner (Local MVP)
 
-- [ ] Job statuses: `queued` → `running` → `succeeded`/`failed`/`blocked_budget`/`cancelled`
-- [ ] Poll-based status updates (Socket.IO optional later)
-- [ ] Audit: persist job metadata; keep large inputs out of SQLite for now
-- [ ] Retry logic for transient errors (429, 5xx)
+- [x] Job statuses: `queued` → `running` → `succeeded`/`failed`/`blocked_budget`/`cancelled`
+- [x] Poll-based status updates (Socket.IO optional later)
+- [x] Audit: persist job metadata; keep large inputs out of SQLite for now
+- [x] Retry logic for transient errors (429, 5xx)
 
-**Notes**: Start with an in-memory queue and store only lightweight job metadata in `generation_jobs.params`. Keep raw inputs in memory for processing; migrate to file-backed input storage if persistence becomes necessary.
+**Notes**: Inputs are persisted to `data/inputs/{job_id}/` and referenced in `generation_jobs.params` to avoid SQLite bloat.
 
 #### Suggested Implementation
 
@@ -337,18 +337,18 @@ class JobRunner:
 
 ### E5.2 Cancellation
 
-- [ ] Cancellation token in client/runner
-- [ ] UI cancel button during generation
-- [ ] Graceful cleanup on cancel
+- [x] Cancellation token in client/runner
+- [x] UI cancel button during generation
+- [x] Graceful cleanup on cancel
 
 ### E5.3 Implementation Plan (Next)
 
-- [ ] Define OpenAI-compatible job endpoints under `/api/v1/openai/jobs`
-- [ ] Store job metadata in `generation_jobs.params` (no binary inputs)
-- [ ] Wire `JobRunner` into FastAPI startup and job APIs
-- [ ] Update history status transitions including `cancelled`
-- [ ] Add frontend polling (5s) and cancel UI actions
-- [ ] Add backend tests for submit/status/cancel flows
+- [x] Define OpenAI-compatible job endpoints under `/api/v1/openai/jobs`
+- [x] Store job metadata in `generation_jobs.params` (no binary inputs)
+- [x] Wire `JobRunner` into FastAPI startup and job APIs
+- [x] Update history status transitions including `cancelled`
+- [x] Add frontend polling (5s) and cancel UI actions
+- [x] Add backend tests for submit/status/cancel flows
 
 ---
 

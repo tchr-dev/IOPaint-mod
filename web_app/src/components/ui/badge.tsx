@@ -112,7 +112,7 @@ function CostTierBadge({
  * ```
  */
 interface StatusBadgeProps extends Omit<BadgeProps, "variant"> {
-  status: "pending" | "running" | "succeeded" | "failed" | "blocked_budget"
+  status: "queued" | "running" | "succeeded" | "failed" | "blocked_budget" | "cancelled"
 }
 
 function StatusBadge({ status, className, ...props }: StatusBadgeProps) {
@@ -120,11 +120,12 @@ function StatusBadge({ status, className, ...props }: StatusBadgeProps) {
     StatusBadgeProps["status"],
     { variant: BadgeProps["variant"]; label: string }
   > = {
-    pending: { variant: "secondary", label: "Pending" },
+    queued: { variant: "secondary", label: "Queued" },
     running: { variant: "info", label: "Running" },
     succeeded: { variant: "success", label: "Success" },
     failed: { variant: "error", label: "Failed" },
     blocked_budget: { variant: "warning", label: "Budget" },
+    cancelled: { variant: "secondary", label: "Cancelled" },
   }
 
   const { variant, label } = config[status]
