@@ -111,6 +111,9 @@ from iopaint.storage import (
     HistorySnapshotListResponse,
 )
 
+# Runner imports (Epic 5)
+from iopaint.runner import JobRunner, JobSubmitRequest, JobTool, QueuedJob
+
 CURRENT_DIR = Path(__file__).parent.absolute().resolve()
 WEB_APP_DIR = CURRENT_DIR / "web_app"
 
@@ -243,6 +246,18 @@ class Api:
         self.external_services_config = ExternalImageServiceConfig()
         logger.info(f"Storage initialized: {self.budget_config.data_dir}")
 
+        # Initialize job runner (Epic 5)
+        self.job_runner: Optional[JobRunner] = None
+        if self.openai_client:
+            self.job_runner = JobRunner(
+                history_storage=self.history_storage,
+                image_storage=self.image_storage,
+                openai_client=self.openai_client,
+                budget_client=self.openai_budget_client,
+            )
+            self.app.add_event_handler("startup", self._start_job_runner)
+            self.app.add_event_handler("shutdown", self._stop_job_runner)
+
         # fmt: off
         self.add_api_route("/api/v1/gen-info", self.api_geninfo, methods=["POST"], response_model=GenInfoResponse)
         self.add_api_route("/api/v1/server-config", self.api_server_config, methods=["GET"],
@@ -270,6 +285,12 @@ class Api:
         self.add_api_route("/api/v1/openai/variations", self.api_openai_variations, methods=["POST"])
         self.add_api_route("/api/v1/openai/upscale", self.api_openai_upscale, methods=["POST"])
         self.add_api_route("/api/v1/openai/background-remove", self.api_openai_background_remove, methods=["POST"])
+        self.add_api_route("/api/v1/openai/jobs", self.api_openai_submit_job, methods=["POST"],
+                           response_model=GenerationJob)
+        self.add_api_route("/api/v1/openai/jobs/{job_id}", self.api_openai_get_job, methods=["GET"],
+                           response_model=GenerationJob)
+        self.add_api_route("/api/v1/openai/jobs/{job_id}/cancel", self.api_openai_cancel_job, methods=["POST"],
+                           response_model=GenerationJob)
 
         # Budget safety API routes
         self.add_api_route("/api/v1/budget/status", self.api_budget_status, methods=["GET"],
@@ -762,6 +783,96 @@ class Api:
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
         req = RunPluginRequest(name=RemoveBG.name, image=image_b64)
         return self.api_run_plugin_gen_image(req)
+
+    async def api_openai_submit_job(
+        self, request: Request, job_request: JobSubmitRequest
+    ) -> GenerationJob:
+        """Submit an OpenAI-compatible job for async processing."""
+        if not self.job_runner:
+            raise HTTPException(status_code=503, detail="Job runner not configured")
+
+        session_id = self._get_session_id(request)
+        operation = JobOperation(job_request.tool.value)
+        params = self._build_job_params(job_request)
+        created_job = GenerationJobCreate(
+            operation=operation,
+            model=job_request.model or self.openai_config.model,
+            intent=job_request.intent,
+            refined_prompt=job_request.refined_prompt or job_request.prompt,
+            negative_prompt=job_request.negative_prompt,
+            preset=job_request.preset,
+            params=params,
+            estimated_cost_usd=None,
+            is_edit=operation != JobOperation.GENERATE,
+        )
+        stored_job = self.history_storage.save_job(session_id=session_id, job=created_job)
+        queued_job = QueuedJob(
+            job_id=stored_job.id,
+            session_id=session_id,
+            request=job_request,
+            openai_base_url=self._get_openai_base_url_override(request),
+        )
+        await self.job_runner.submit(queued_job)
+        return stored_job
+
+    def api_openai_get_job(self, job_id: str) -> GenerationJob:
+        """Get an OpenAI-compatible job record."""
+        job = self.history_storage.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return job
+
+    def api_openai_cancel_job(self, job_id: str) -> GenerationJob:
+        """Cancel an OpenAI-compatible job if possible."""
+        if not self.job_runner:
+            raise HTTPException(status_code=503, detail="Job runner not configured")
+
+        job = self.history_storage.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.status in {
+            JobStatus.SUCCEEDED,
+            JobStatus.FAILED,
+            JobStatus.BLOCKED_BUDGET,
+            JobStatus.CANCELLED,
+        }:
+            return job
+
+        self.job_runner.cancel(job_id)
+        self.history_storage.update_job(
+            job_id,
+            GenerationJobUpdate(
+                status=JobStatus.CANCELLED,
+                error_message="Cancelled by user",
+            ),
+        )
+        updated_job = self.history_storage.get_job(job_id)
+        if not updated_job:
+            raise HTTPException(status_code=404, detail="Job not found after cancel")
+        return updated_job
+
+    async def _start_job_runner(self) -> None:
+        if self.job_runner:
+            await self.job_runner.start()
+
+    async def _stop_job_runner(self) -> None:
+        if self.job_runner:
+            await self.job_runner.stop()
+
+    def _build_job_params(self, job_request: JobSubmitRequest) -> Dict[str, object]:
+        params = job_request.model_dump(
+            exclude={
+                "image_b64",
+                "mask_b64",
+                "prompt",
+                "intent",
+                "refined_prompt",
+                "negative_prompt",
+                "preset",
+            }
+        )
+        params["tool"] = job_request.tool.value
+        return params
 
     def _openai_cache_provider(self, config: OpenAIConfig) -> str:
         """Build a provider key for model cache."""

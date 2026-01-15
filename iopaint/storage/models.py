@@ -14,6 +14,7 @@ class JobStatus(str, Enum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     BLOCKED_BUDGET = "blocked_budget"
+    CANCELLED = "cancelled"
 
 
 class JobOperation(str, Enum):
@@ -21,6 +22,10 @@ class JobOperation(str, Enum):
 
     GENERATE = "generate"
     EDIT = "edit"
+    OUTPAINT = "outpaint"
+    VARIATION = "variation"
+    UPSCALE = "upscale"
+    BACKGROUND_REMOVE = "background_remove"
     REFINE = "refine"
 
 

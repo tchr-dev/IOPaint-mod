@@ -79,10 +79,10 @@ if result.shape[:2] != image.shape[:2]:
 ### E1.2 IOPaint Tool Integration
 
 - [x] Inpaint via `openai-compat` model selection
-- [ ] Outpaint tool
-- [ ] Variations tool
-- [ ] Upscale tool
-- [ ] Background removal via API
+- [x] Outpaint tool
+- [x] Variations tool
+- [x] Upscale tool
+- [x] Background removal via API
 
 ---
 
@@ -305,10 +305,12 @@ openAIState: {
 
 ### E5.1 Job Runner (Local MVP)
 
-- [ ] Job statuses: `queued` → `running` → `succeeded`/`failed`/`blocked_budget`
-- [ ] Progress updates via Socket.IO
-- [ ] Audit: save job input/params before API call
+- [ ] Job statuses: `queued` → `running` → `succeeded`/`failed`/`blocked_budget`/`cancelled`
+- [ ] Poll-based status updates (Socket.IO optional later)
+- [ ] Audit: persist job metadata; keep large inputs out of SQLite for now
 - [ ] Retry logic for transient errors (429, 5xx)
+
+**Notes**: Start with an in-memory queue and store only lightweight job metadata in `generation_jobs.params`. Keep raw inputs in memory for processing; migrate to file-backed input storage if persistence becomes necessary.
 
 #### Suggested Implementation
 
@@ -338,6 +340,15 @@ class JobRunner:
 - [ ] Cancellation token in client/runner
 - [ ] UI cancel button during generation
 - [ ] Graceful cleanup on cancel
+
+### E5.3 Implementation Plan (Next)
+
+- [ ] Define OpenAI-compatible job endpoints under `/api/v1/openai/jobs`
+- [ ] Store job metadata in `generation_jobs.params` (no binary inputs)
+- [ ] Wire `JobRunner` into FastAPI startup and job APIs
+- [ ] Update history status transitions including `cancelled`
+- [ ] Add frontend polling (5s) and cancel UI actions
+- [ ] Add backend tests for submit/status/cancel flows
 
 ---
 

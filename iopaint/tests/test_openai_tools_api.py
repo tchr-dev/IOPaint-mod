@@ -35,6 +35,24 @@ class DummyOpenAIClient:
         return b"variation"
 
 
+class DummyJobRunner:
+    def __init__(self):
+        self.submitted = []
+        self.cancelled = []
+
+    async def start(self):
+        return None
+
+    async def stop(self):
+        return None
+
+    async def submit(self, job):
+        self.submitted.append(job)
+
+    def cancel(self, job_id: str) -> None:
+        self.cancelled.append(job_id)
+
+
 def _make_api_config() -> ApiConfig:
     return ApiConfig(
         host="127.0.0.1",
@@ -197,3 +215,57 @@ def test_openai_invalid_base_url(monkeypatch, tmp_path):
 
     assert res.status_code == 422
     assert api.openai_client.last_models_request is False
+
+
+def test_openai_jobs_submit_and_get(monkeypatch, tmp_path):
+    client, api = _make_test_client(monkeypatch, tmp_path, with_openai=True)
+    api.job_runner = DummyJobRunner()
+
+    res = client.post(
+        "/api/v1/openai/jobs",
+        json={
+            "tool": "generate",
+            "prompt": "A serene landscape",
+            "model": "gpt-image-1",
+            "size": "1024x1024",
+            "quality": "standard",
+            "n": 1,
+            "intent": "Landscape",
+            "refined_prompt": "A serene landscape with mountains",
+            "negative_prompt": "blurry",
+            "preset": "draft",
+        },
+    )
+
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["status"] == "queued"
+    assert payload["operation"] == "generate"
+    assert payload["params"]["tool"] == "generate"
+    assert payload["params"]["size"] == "1024x1024"
+    assert "prompt" not in payload["params"]
+
+    get_res = client.get(f"/api/v1/openai/jobs/{payload['id']}")
+    assert get_res.status_code == 200
+    assert get_res.json()["id"] == payload["id"]
+
+
+def test_openai_jobs_cancel(monkeypatch, tmp_path):
+    client, api = _make_test_client(monkeypatch, tmp_path, with_openai=True)
+    api.job_runner = DummyJobRunner()
+
+    create_res = client.post(
+        "/api/v1/openai/jobs",
+        json={
+            "tool": "generate",
+            "prompt": "A night sky",
+            "model": "gpt-image-1",
+            "n": 1,
+        },
+    )
+
+    job_id = create_res.json()["id"]
+    cancel_res = client.post(f"/api/v1/openai/jobs/{job_id}/cancel")
+    assert cancel_res.status_code == 200
+    assert cancel_res.json()["status"] == "cancelled"
+    assert job_id in api.job_runner.cancelled

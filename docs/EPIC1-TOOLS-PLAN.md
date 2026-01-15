@@ -1,5 +1,8 @@
 # Epic 1.2 Tools Plan
 
+## Status
+Completed implementation across API, frontend UI/state, and tests.
+
 ## Scope
 Implement the remaining OpenAI-compatible tools:
 - Outpaint

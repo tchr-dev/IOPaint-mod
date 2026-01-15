@@ -266,7 +266,12 @@ class HistoryStorage:
         if updates.status is not None:
             set_clauses.append("status = ?")
             params.append(updates.status.value)
-            if updates.status in (JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.BLOCKED_BUDGET):
+            if updates.status in (
+                JobStatus.SUCCEEDED,
+                JobStatus.FAILED,
+                JobStatus.BLOCKED_BUDGET,
+                JobStatus.CANCELLED,
+            ):
                 set_clauses.append("completed_at = ?")
                 params.append(datetime.utcnow().isoformat())
 
