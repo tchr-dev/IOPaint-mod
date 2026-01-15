@@ -363,7 +363,7 @@ class JobRunner:
 - [x] Fingerprint determinism
 - [x] BudgetGuard: block/allow logic
 - [x] Retry logic: 429/timeout retry, 400 no retry
-- [ ] Undo/redo for brush and AI edits
+- [x] Undo/redo for brush and AI edits
 
 #### Test Files to Create
 
@@ -373,6 +373,9 @@ class JobRunner:
  ├── test_dedupe_fingerprint.py  # Determinism checks
  ├── test_openai_errors.py       # Error classification
  └── test_openai_client.py       # Mock HTTP responses
+
+ web_app/src/lib/__tests__/
+ └── states.undo-redo.test.ts    # Editor undo/redo
 ```
 
 
