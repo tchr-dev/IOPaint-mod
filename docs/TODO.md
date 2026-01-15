@@ -387,9 +387,9 @@ class JobRunner:
 
 ### E6.3 Frontend Tests
 
-- [ ] OpenAI job polling status transitions
-- [ ] Cancel button behavior while queued/running
-- [ ] History filtering for `failed`/`cancelled`
+- [x] OpenAI job polling status transitions
+- [x] Cancel button behavior while queued/running
+- [x] History filtering for `failed`/`cancelled`
 
 ### E6.4 Playwright E2E (Optional)
 
