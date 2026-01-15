@@ -74,10 +74,13 @@ from iopaint.openai_compat.config import OpenAIConfig
 from iopaint.openai_compat.client import OpenAICompatClient
 from iopaint.openai_compat.models import (
     GenerateImageRequest as OpenAIGenerateRequest,
+    GenerateImageResponse as OpenAIGenerateResponse,
     RefinePromptRequest as OpenAIRefineRequest,
     RefinePromptResponse,
     EditImageRequest as OpenAIEditRequest,
+    EditImageResponse as OpenAIEditResponse,
     CreateVariationRequest as OpenAIVariationRequest,
+    ImageData as OpenAIImageData,
     ImageSize as OpenAIImageSize,
     ResponseFormat as OpenAIResponseFormat,
 )
@@ -299,6 +302,18 @@ class Api:
                            response_model=GenerationJob)
         self.add_api_route("/api/v1/openai/jobs/{job_id}/cancel", self.api_openai_cancel_job, methods=["POST"],
                            response_model=GenerationJob)
+        self.add_api_route(
+            "/v1/images/generations",
+            self.api_openai_images_generate,
+            methods=["POST"],
+            response_model=OpenAIGenerateResponse,
+        )
+        self.add_api_route(
+            "/v1/images/edits",
+            self.api_openai_images_edit,
+            methods=["POST"],
+            response_model=OpenAIEditResponse,
+        )
 
         # Budget safety API routes
         self.add_api_route("/api/v1/budget/status", self.api_budget_status, methods=["GET"],
@@ -596,6 +611,44 @@ class Api:
         except OpenAIError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    def api_openai_images_generate(
+        self, request: Request, req: OpenAIGenerateRequest
+    ) -> OpenAIGenerateResponse:
+        """OpenAI protocol: /v1/images/generations."""
+        try:
+            client, budget_client, config = self._resolve_openai_clients(request)
+            session_id = self._get_session_id(request)
+            if budget_client:
+                image_bytes = budget_client.generate_image(req, session_id=session_id)
+            else:
+                image_bytes = client.generate_image(req)
+
+            params = {
+                "size": req.size.value,
+                "quality": req.quality.value,
+                "n": req.n,
+            }
+            _, image_id = self._record_openai_image_job(
+                session_id=session_id,
+                operation=JobOperation.GENERATE,
+                model=req.model or config.model,
+                prompt=req.prompt,
+                params=params,
+                is_edit=False,
+                image_bytes=image_bytes,
+            )
+            return self._build_openai_image_response(
+                request,
+                image_bytes,
+                req.response_format,
+                image_id,
+                OpenAIGenerateResponse,
+            )
+        except BudgetError as e:
+            self._raise_budget_error(e)
+        except OpenAIError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
     def api_openai_edit(
         self,
         request: Request,
@@ -632,6 +685,69 @@ class Api:
             else:
                 result = client.edit_image(edit_request)
             return Response(content=result, media_type="image/png")
+        except BudgetError as e:
+            self._raise_budget_error(e)
+        except OpenAIError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def api_openai_images_edit(
+        self,
+        request: Request,
+        image: UploadFile = File(...),
+        mask: UploadFile = File(...),
+        prompt: str = Form(...),
+        n: int = Form(1),
+        size: Optional[str] = Form(None),
+        model: Optional[str] = Form(None),
+        response_format: Optional[str] = Form(None),
+    ) -> OpenAIEditResponse:
+        """OpenAI protocol: /v1/images/edits."""
+        image_bytes = self._read_upload_bytes(image, "image")
+        mask_bytes = self._read_upload_bytes(mask, "mask")
+        parsed_size = self._parse_openai_size(size)
+        parsed_format = self._parse_openai_response_format(response_format)
+        edit_request = OpenAIEditRequest(
+            image=image_bytes,
+            mask=mask_bytes,
+            prompt=prompt,
+            n=n,
+            size=parsed_size,
+            model=model,
+            response_format=parsed_format,
+        )
+        try:
+            client, budget_client, config = self._resolve_openai_clients(request)
+            session_id = self._get_session_id(request)
+            if budget_client:
+                result = budget_client.edit_image(
+                    edit_request,
+                    session_id=session_id,
+                    image_bytes=image_bytes,
+                    mask_bytes=mask_bytes,
+                )
+            else:
+                result = client.edit_image(edit_request)
+
+            params = {
+                "size": parsed_size.value if parsed_size else None,
+                "n": n,
+            }
+            _, image_id = self._record_openai_image_job(
+                session_id=session_id,
+                operation=JobOperation.EDIT,
+                model=model or config.model,
+                prompt=prompt,
+                params=params,
+                is_edit=True,
+                image_bytes=result,
+            )
+            return self._build_openai_image_response(
+                request,
+                result,
+                parsed_format,
+                image_id,
+                OpenAIEditResponse,
+            )
         except BudgetError as e:
             self._raise_budget_error(e)
         except OpenAIError as e:
@@ -781,7 +897,7 @@ class Api:
                 mask_bytes=self._build_full_edit_mask(image_bytes),
                 prompt=edit_prompt,
                 n=1,
-                size=None,
+                size=self._parse_openai_size(response_format),
                 model=model,
                 response_format=self._parse_openai_response_format(response_format),
             )
@@ -792,7 +908,57 @@ class Api:
         req = RunPluginRequest(name=RemoveBG.name, image=image_b64)
         return self.api_run_plugin_gen_image(req)
 
+    def _record_openai_image_job(
+        self,
+        session_id: str,
+        operation: JobOperation,
+        model: str,
+        prompt: str,
+        params: Dict[str, object],
+        is_edit: bool,
+        image_bytes: bytes,
+    ) -> Tuple[GenerationJob, str]:
+        job_params = {key: value for key, value in params.items() if value is not None}
+        created_job = GenerationJobCreate(
+            operation=operation,
+            model=model,
+            refined_prompt=prompt,
+            params=job_params,
+            is_edit=is_edit,
+        )
+        stored_job = self.history_storage.save_job(session_id=session_id, job=created_job)
+        image_record = self.image_storage.save_image(image_bytes, job_id=stored_job.id)
+        self.history_storage.update_job(
+            stored_job.id,
+            GenerationJobUpdate(
+                status=JobStatus.SUCCEEDED,
+                result_image_id=image_record.id,
+            ),
+        )
+        updated_job = self.history_storage.get_job(stored_job.id)
+        if not updated_job:
+            raise HTTPException(status_code=404, detail="Job not found after update")
+        return updated_job, image_record.id
+
+    def _build_openai_image_response(
+        self,
+        request: Request,
+        image_bytes: bytes,
+        response_format: OpenAIResponseFormat,
+        image_id: str,
+        response_model,
+    ):
+        if response_format == OpenAIResponseFormat.URL:
+            image_url = f"{request.base_url}api/v1/storage/images/{image_id}"
+            image_data = OpenAIImageData(url=image_url)
+        else:
+            image_data = OpenAIImageData(
+                b64_json=base64.b64encode(image_bytes).decode("utf-8")
+            )
+        return response_model(created=int(time.time()), data=[image_data])
+
     async def api_openai_submit_job(
+
         self, request: Request, job_request: JobSubmitRequest
     ) -> GenerationJob:
         """Submit an OpenAI-compatible job for async processing."""

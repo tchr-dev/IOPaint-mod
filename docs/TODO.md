@@ -378,9 +378,9 @@ class JobRunner:
 
 ### E6.2 Integration Tests (Mock API)
 
-- [ ] `/v1/images/generations`: file saved, DB records created, dedupe works
-- [ ] `/v1/images/edits`: correct mask/params conversion
-- [ ] Budget tracking end-to-end
+- [x] `/v1/images/generations`: file saved, DB records created, dedupe works
+- [x] `/v1/images/edits`: correct mask/params conversion
+- [x] Budget tracking end-to-end
 
 ### E6.3 Frontend Tests
 
