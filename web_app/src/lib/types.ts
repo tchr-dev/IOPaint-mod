@@ -119,6 +119,13 @@ export interface Size {
   height: number
 }
 
+export interface StoredImage {
+  id: string
+  src: string
+  width: number
+  height: number
+}
+
 export enum ExtenderDirection {
   x = "x",
   y = "y",

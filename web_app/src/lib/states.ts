@@ -1,7 +1,7 @@
 import { persist } from "zustand/middleware"
 import { shallow } from "zustand/shallow"
 import { immer } from "zustand/middleware/immer"
-import { castDraft } from "immer"
+import { castDraft, type WritableDraft } from "immer"
 import { createWithEqualityFn } from "zustand/traditional"
 import {
   AdjustMaskOperate,
@@ -16,6 +16,7 @@ import {
   PowerPaintTask,
   ServerConfig,
   Size,
+  StoredImage,
   SortBy,
   SortOrder,
   // OpenAI types (Epic 4)
@@ -43,9 +44,11 @@ import {
   blobToImage,
   canvasToImage,
   convertToBase64,
+  createStoredImage,
   dataURItoBlob,
   generateMask,
   loadImage,
+  resolveStoredImages,
   srcToFile,
 } from "./utils"
 import inpaint, { getGenInfo, postAdjustMask, runPlugin } from "./api"
@@ -119,11 +122,21 @@ const mapBackendJobToFrontend = (job: BackendGenerationJob): GenerationJob => {
   }
 }
 
+type StoreState = AppState & AppAction
+
+type StoreSet = (
+  nextStateOrUpdater:
+    | StoreState
+    | Partial<StoreState>
+    | ((state: WritableDraft<StoreState>) => void),
+  shouldReplace?: boolean
+) => void
+
 const startOpenAIJobPolling = (
   jobId: string,
   baseUrl: string | undefined,
-  get: () => AppState & AppAction,
-  set: (fn: (state: AppState & AppAction) => void) => void,
+  get: () => StoreState,
+  set: StoreSet,
   options: { loadIntoEditor: boolean }
 ) => {
   if (openAIJobPollers.has(jobId)) return
@@ -175,9 +188,10 @@ const startOpenAIJobPolling = (
           if (options.loadIntoEditor) {
             const newRender = new Image()
             await loadImage(newRender, resultDataUrl)
+            const storedRender = createStoredImage(newRender)
             get().setImageSize(newRender.width, newRender.height)
             set((state) => {
-              state.editorState.renders.push(castDraft(newRender))
+              state.editorState.renders.push(storedRender)
               state.editorState.curLineGroup = []
               state.editorState.extraMasks = []
             })
@@ -310,25 +324,25 @@ export type Settings = {
 
 type InteractiveSegState = {
   isInteractiveSeg: boolean
-  tmpInteractiveSegMask: HTMLImageElement | null
+  tmpInteractiveSegMask: StoredImage | null
   clicks: number[][]
 }
 
 type EditorState = {
   baseBrushSize: number
   brushSizeScale: number
-  renders: HTMLImageElement[]
+  renders: StoredImage[]
   lineGroups: LineGroup[]
   lastLineGroup: LineGroup
   curLineGroup: LineGroup
 
   // mask from interactive-seg or other segmentation models
-  extraMasks: HTMLImageElement[]
-  prevExtraMasks: HTMLImageElement[]
+  extraMasks: StoredImage[]
+  prevExtraMasks: StoredImage[]
 
-  temporaryMasks: HTMLImageElement[]
+  temporaryMasks: StoredImage[]
   // redo 相关
-  redoRenders: HTMLImageElement[]
+  redoRenders: StoredImage[]
   redoCurLines: Line[]
   redoLineGroups: LineGroup[]
 }
@@ -714,17 +728,19 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         }
         const { imageWidth, imageHeight } = get()
 
+        const maskImages = await resolveStoredImages(prevExtraMasks)
         const maskCanvas = generateMask(
           imageWidth,
           imageHeight,
           [lastLineGroup],
-          prevExtraMasks,
+          maskImages,
           BRUSH_COLOR
         )
         try {
           const maskImage = await canvasToImage(maskCanvas)
+          const storedMask = createStoredImage(maskImage)
           set((state) => {
-            state.editorState.temporaryMasks.push(castDraft(maskImage))
+            state.editorState.temporaryMasks.push(storedMask)
           })
         } catch (e) {
           console.error(e)
@@ -745,7 +761,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         if (renders.length > 0) {
           const lastRender = renders[renders.length - 1]
           targetFile = await srcToFile(
-            lastRender.currentSrc,
+            lastRender.src,
             file.name,
             file.type
           )
@@ -795,7 +811,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         // useLastLineGroup 的影响
         // 1. 使用上一次的 mask
         // 2. 结果替换当前 render
-        let maskImages: HTMLImageElement[] = []
+        let maskImages: StoredImage[] = []
         let maskLineGroup: LineGroup = []
         if (useLastLineGroup === true) {
           maskLineGroup = lastLineGroup
@@ -829,7 +845,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           if (renders.length > 1) {
             const lastRender = renders[renders.length - 2]
             targetFile = await srcToFile(
-              lastRender.currentSrc,
+              lastRender.src,
               file.name,
               file.type
             )
@@ -837,23 +853,25 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         } else if (renders.length > 0) {
           const lastRender = renders[renders.length - 1]
           targetFile = await srcToFile(
-            lastRender.currentSrc,
+            lastRender.src,
             file.name,
             file.type
           )
         }
 
+        const resolvedMaskImages = await resolveStoredImages(maskImages)
         const maskCanvas = generateMask(
           imageWidth,
           imageHeight,
           [maskLineGroup],
-          maskImages,
+          resolvedMaskImages,
           BRUSH_COLOR
         )
         if (useLastLineGroup) {
           const temporaryMask = await canvasToImage(maskCanvas)
+          const storedMask = createStoredImage(temporaryMask)
           set((state) => {
-            state.editorState.temporaryMasks = castDraft([temporaryMask])
+            state.editorState.temporaryMasks = [storedMask]
           })
         }
 
@@ -873,7 +891,8 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           }
           const newRender = new Image()
           await loadImage(newRender, blob)
-          const newRenders = [...renders, newRender]
+          const storedRender = createStoredImage(newRender)
+          const newRenders = [...renders, storedRender]
           get().setImageSize(newRender.width, newRender.height)
           get().updateEditorState({
             renders: newRenders,
@@ -960,8 +979,9 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           if (!genMask) {
             const newRender = new Image()
             await loadImage(newRender, blobUrl)
+            const storedRender = createStoredImage(newRender)
             get().setImageSize(newRender.width, newRender.height)
-            const newRenders = [...renders, newRender]
+            const newRenders = [...renders, storedRender]
             const newLineGroups = [...lineGroups, []]
             get().updateEditorState({
               renders: newRenders,
@@ -970,8 +990,9 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           } else {
             const newMask = new Image()
             await loadImage(newMask, blobUrl)
+            const storedMask = createStoredImage(newMask)
             set((state) => {
-              state.editorState.extraMasks.push(castDraft(newMask))
+              state.editorState.extraMasks.push(storedMask)
             })
           }
           const end = new Date()
@@ -1268,7 +1289,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         set((state) => {
           if (state.interactiveSegState.tmpInteractiveSegMask) {
             state.editorState.extraMasks.push(
-              castDraft(state.interactiveSegState.tmpInteractiveSegMask)
+              state.interactiveSegState.tmpInteractiveSegMask
             )
           }
           state.interactiveSegState = castDraft({
@@ -1281,8 +1302,9 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         const newMask = new Image()
 
         await loadImage(newMask, URL.createObjectURL(blob))
+        const storedMask = createStoredImage(newMask)
         set((state) => {
-          state.editorState.extraMasks.push(castDraft(newMask))
+          state.editorState.extraMasks.push(storedMask)
         })
         get().runInpainting()
       },
@@ -1484,11 +1506,12 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           state.isAdjustingMask = true
         })
 
+        const resolvedExtraMasks = await resolveStoredImages(extraMasks)
         const maskCanvas = generateMask(
           imageWidth,
           imageHeight,
           [curLineGroup],
-          extraMasks,
+          resolvedExtraMasks,
           BRUSH_COLOR
         )
         const maskBlob = dataURItoBlob(maskCanvas.toDataURL())
@@ -1498,10 +1521,11 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           adjustMaskKernelSize
         )
         const newMask = await blobToImage(newMaskBlob)
+        const storedMask = createStoredImage(newMask)
 
         // TODO: currently ignore stroke undo/redo
         set((state) => {
-          state.editorState.extraMasks = [castDraft(newMask)]
+          state.editorState.extraMasks = [storedMask]
           state.editorState.curLineGroup = []
         })
 
@@ -2105,11 +2129,12 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           const baseUrl = resolveOpenAIBaseUrl(
             get().settings.openAIProvider
           )
+          const resolvedExtraMasks = await resolveStoredImages(extraMasks)
           const maskCanvas = generateMask(
             imageWidth,
             imageHeight,
             [curLineGroup],
-            extraMasks,
+            resolvedExtraMasks,
             BRUSH_COLOR
           )
           const maskBlob = dataURItoBlob(maskCanvas.toDataURL())
@@ -2204,11 +2229,12 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           const baseUrl = resolveOpenAIBaseUrl(
             get().settings.openAIProvider
           )
+          const resolvedExtraMasks = await resolveStoredImages(extraMasks)
           const maskCanvas = generateMask(
             imageWidth,
             imageHeight,
             [curLineGroup],
-            extraMasks,
+            resolvedExtraMasks,
             BRUSH_COLOR
           )
           const maskBlob = dataURItoBlob(maskCanvas.toDataURL())

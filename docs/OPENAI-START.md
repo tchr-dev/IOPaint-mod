@@ -9,10 +9,23 @@
 ```bash
 # from repo root
 uv sync
-python3 main.py start --model openai-compat --port 8080
+uv run python main.py start --model openai-compat --port 8080
 ```
 
-> If you don’t use `uv`, run `pip install -r requirements.txt` instead.
+Friendly launcher (optional):
+
+```bash
+./launch.sh dev
+```
+
+Production launcher (builds frontend then starts backend):
+
+```bash
+./launch.sh prod
+```
+
+> If you don’t use `uv`, run `python -m pip install -r requirements.txt` and then
+> `python main.py start --model openai-compat --port 8080`.
 
 ## Start the Frontend (Vite)
 
@@ -41,7 +54,7 @@ export AIE_OPENAI_MODEL="gpt-image-1"
 Then start the backend:
 
 ```bash
-python3 main.py start --model openai-compat --port 8080
+uv run python main.py start --model openai-compat --port 8080
 ```
 
 In the UI, set the provider to `proxyapi` (if available). If a base URL field is shown, use:
@@ -49,6 +62,28 @@ In the UI, set the provider to `proxyapi` (if available). If a base URL field is
 ```
 https://api.proxyapi.ru/openai/v1
 ```
+
+## Secure Config File (Hot Reload)
+
+Create `config/secret.env` (gitignored) with `.env`-style entries:
+
+```bash
+AIE_OPENAI_API_KEY=sk-proxyapi-xxx
+AIE_OPENAI_BASE_URL=https://api.proxyapi.ru/openai/v1
+AIE_OPENAI_MODEL=gpt-image-1
+```
+
+You can start from the template at `config/secret.env.example`.
+
+OS environment variables still take precedence over the file. Override path with `AIE_CONFIG_FILE=path/to/env`.
+
+To reload on the fly:
+
+```bash
+kill -HUP <pid>
+```
+
+The backend also exposes safe config keys at `GET /api/v1/config/public`.
 
 ---
 

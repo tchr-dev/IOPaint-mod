@@ -11,6 +11,7 @@ from typer import Option
 from typer_config import use_json_config
 
 from iopaint.const import *
+from iopaint.config_loader import register_env_override
 from iopaint.runtime import setup_model_dir, dump_environment_info, check_device
 from iopaint.schema import InteractiveSegModel, Device, RealESRGANModel, RemoveBGModel
 
@@ -219,25 +220,38 @@ def start(
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
         os.environ["HF_HUB_OFFLINE"] = "1"
 
+    env_overrides = []
+
     # Set OpenAI environment variables from CLI flags if provided
     if openai_api_key:
         os.environ["AIE_OPENAI_API_KEY"] = openai_api_key
+        env_overrides.append("AIE_OPENAI_API_KEY")
     if openai_base_url:
         os.environ["AIE_OPENAI_BASE_URL"] = openai_base_url
+        env_overrides.append("AIE_OPENAI_BASE_URL")
     if openai_model:
         os.environ["AIE_OPENAI_MODEL"] = openai_model
+        env_overrides.append("AIE_OPENAI_MODEL")
 
     # Set budget environment variables from CLI flags if provided
     if budget_daily_cap is not None:
         os.environ["AIE_BUDGET_DAILY_CAP"] = str(budget_daily_cap)
+        env_overrides.append("AIE_BUDGET_DAILY_CAP")
     if budget_monthly_cap is not None:
         os.environ["AIE_BUDGET_MONTHLY_CAP"] = str(budget_monthly_cap)
+        env_overrides.append("AIE_BUDGET_MONTHLY_CAP")
     if budget_session_cap is not None:
         os.environ["AIE_BUDGET_SESSION_CAP"] = str(budget_session_cap)
+        env_overrides.append("AIE_BUDGET_SESSION_CAP")
     if budget_rate_limit is not None:
         os.environ["AIE_RATE_LIMIT_SECONDS"] = str(budget_rate_limit)
+        env_overrides.append("AIE_RATE_LIMIT_SECONDS")
     if budget_data_dir is not None:
         os.environ["AIE_DATA_DIR"] = str(budget_data_dir.expanduser().absolute())
+        env_overrides.append("AIE_DATA_DIR")
+
+    if env_overrides:
+        register_env_override(env_overrides)
 
     from iopaint.download import cli_download_model, scan_models
 

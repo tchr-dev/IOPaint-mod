@@ -3,6 +3,7 @@ import base64
 import binascii
 import io
 import json
+import os
 import time
 import threading
 import traceback
@@ -36,6 +37,7 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from socketio import AsyncServer
 
+from iopaint.config_loader import install_sighup_handler, load_env_file, public_config
 from iopaint.file_manager import FileManager
 from iopaint.helper import (
     load_img,
@@ -214,6 +216,7 @@ class Api:
         self.config = config
         self.router = APIRouter()
         self.queue_lock = threading.Lock()
+        self._config_reload_lock = threading.Lock()
         api_middleware(self.app)
 
         self.file_manager = self._build_file_manager()
@@ -273,6 +276,7 @@ class Api:
         self.add_api_route("/api/v1/gen-info", self.api_geninfo, methods=["POST"], response_model=GenInfoResponse)
         self.add_api_route("/api/v1/server-config", self.api_server_config, methods=["GET"],
                            response_model=ServerConfigResponse)
+        self.add_api_route("/api/v1/config/public", self.api_public_config, methods=["GET"])
         self.add_api_route("/api/v1/model", self.api_current_model, methods=["GET"], response_model=ModelInfo)
         self.add_api_route("/api/v1/model", self.api_switch_model, methods=["POST"], response_model=ModelInfo)
         self.add_api_route("/api/v1/inputimage", self.api_input_image, methods=["GET"])
@@ -354,8 +358,62 @@ class Api:
         self.app.mount("/ws", self.combined_asgi_app)
         global_sio = self.sio
 
+        install_sighup_handler(self.reload_runtime_config)
+
     def add_api_route(self, path: str, endpoint, **kwargs):
         return self.app.add_api_route(path, endpoint, **kwargs)
+
+    def reload_runtime_config(self) -> None:
+        with self._config_reload_lock:
+            load_env_file()
+
+            self.openai_config = OpenAIConfig()
+            self.openai_client = None
+            self.openai_budget_client = None
+            if self.openai_config.is_enabled:
+                self.openai_client = OpenAICompatClient(self.openai_config)
+                logger.info(
+                    "OpenAI-compatible client reloaded: %s",
+                    self.openai_config.base_url,
+                )
+            else:
+                logger.warning("OpenAI-compatible client disabled after reload")
+
+            self.budget_config = BudgetConfig()
+            self.budget_storage = BudgetStorage(self.budget_config)
+            self.budget_guard = BudgetGuard(self.budget_config, self.budget_storage)
+            self.cost_estimator = CostEstimator()
+
+            if self.openai_client:
+                self.openai_budget_client = BudgetAwareOpenAIClient(
+                    client=self.openai_client,
+                    config=self.budget_config,
+                    storage=self.budget_storage,
+                    cost_estimator=self.cost_estimator,
+                )
+
+            self.history_storage = HistoryStorage(db_path=self.budget_config.db_path)
+            self.image_storage = ImageStorage(
+                data_dir=self.budget_config.data_dir,
+                db_path=self.budget_config.db_path,
+            )
+            self.input_storage = InputStorage(self.budget_config.data_dir)
+            self.model_cache_storage = ModelCacheStorage(
+                db_path=self.budget_config.db_path,
+            )
+            self.external_services_config = ExternalImageServiceConfig()
+
+            if self.job_runner:
+                self.job_runner.history_storage = self.history_storage
+                self.job_runner.image_storage = self.image_storage
+                self.job_runner.input_storage = self.input_storage
+                self.job_runner.openai_client = self.openai_client
+                self.job_runner.budget_client = self.openai_budget_client
+
+            logger.info("Runtime config reloaded")
+
+    def api_public_config(self) -> Dict[str, str]:
+        return public_config()
 
     def api_save_image(self, file: UploadFile):
         # Sanitize filename to prevent path traversal

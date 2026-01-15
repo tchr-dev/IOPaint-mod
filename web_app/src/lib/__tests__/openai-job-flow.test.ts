@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useStore } from "../states"
-import type { GenerateImageRequest } from "../types"
+import type { BudgetStatus, GenerateImageRequest } from "../types"
 import { GenerationPreset } from "../types"
 import {
   cancelOpenAIJob,
@@ -10,6 +10,7 @@ import {
   getOpenAIBudgetStatus,
   getOpenAIJob,
   submitOpenAIJob,
+  type BackendGenerationJob,
 } from "../openai-api"
 
 vi.mock("../openai-api", async () => {
@@ -27,7 +28,7 @@ vi.mock("../openai-api", async () => {
   }
 })
 
-const mockBudgetStatus = {
+const mockBudgetStatus: BudgetStatus = {
   daily: {
     spentUsd: 0,
     remainingUsd: 10,
@@ -53,7 +54,7 @@ const mockBudgetStatus = {
   message: null,
 }
 
-const baseBackendJob = () => ({
+const baseBackendJob = (): BackendGenerationJob => ({
   id: "job-1",
   session_id: "session-1",
   status: "queued",
@@ -69,14 +70,11 @@ const baseBackendJob = () => ({
     n: 1,
   },
   estimated_cost_usd: 0.12,
-  actual_cost_usd: undefined,
   is_edit: false,
   created_at: new Date("2025-01-01T00:00:00Z").toISOString(),
 })
 
-const buildBackendJob = (
-  overrides?: Partial<ReturnType<typeof baseBackendJob>>
-) => ({
+const buildBackendJob = (overrides?: Partial<BackendGenerationJob>) => ({
   ...baseBackendJob(),
   ...(overrides ?? {}),
 })

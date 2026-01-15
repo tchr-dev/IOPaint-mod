@@ -136,3 +136,13 @@ python3 main.py start --model lama --port 8080
 Then you can visit `http://localhost:5173/` for development.
 The frontend code will automatically update after being modified,
 but the backend needs to restart the service after modifying the python code.
+
+### Testing
+
+Use the friendly test runner from the repo root:
+
+```bash
+./run_tests.sh
+```
+
+It logs each run to `./logs/test-run-<timestamp>.log`.

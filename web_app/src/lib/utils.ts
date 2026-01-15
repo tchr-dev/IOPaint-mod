@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { SyntheticEvent } from "react"
 import { twMerge } from "tailwind-merge"
-import { LineGroup } from "./types"
+import { LineGroup, StoredImage } from "./types"
 import { BRUSH_COLOR } from "./const"
 
 export function cn(...inputs: ClassValue[]) {
@@ -51,6 +51,45 @@ export function loadImage(image: HTMLImageElement, src: string) {
     }
     img.src = src
   })
+}
+
+const storedImageCache = new Map<string, HTMLImageElement>()
+
+const createStoredImageId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+export const createStoredImage = (image: HTMLImageElement): StoredImage => {
+  const id = createStoredImageId()
+  const src = image.currentSrc || image.src
+  const storedImage = {
+    id,
+    src,
+    width: image.width,
+    height: image.height,
+  }
+  storedImageCache.set(id, image)
+  return storedImage
+}
+
+export const resolveStoredImage = async (
+  storedImage: StoredImage
+): Promise<HTMLImageElement> => {
+  const cached = storedImageCache.get(storedImage.id)
+  if (cached && cached.currentSrc === storedImage.src) {
+    return cached
+  }
+  const image = cached ?? new Image()
+  await loadImage(image, storedImage.src)
+  storedImageCache.set(storedImage.id, image)
+  return image
+}
+
+export const resolveStoredImages = (
+  storedImages: StoredImage[]
+): Promise<HTMLImageElement[]> => {
+  return Promise.all(storedImages.map(resolveStoredImage))
 }
 
 export async function blobToImage(blob: Blob) {

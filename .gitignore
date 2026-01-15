@@ -10,6 +10,7 @@ IOPaint.egg-info/
 venv/
 tmp/
 iopaint/web_app/
+config/secret.env
 
 # Manual testing
 test*.sh

@@ -13,12 +13,15 @@ import {
   askWritePermission,
   cn,
   copyCanvasImage,
+  createStoredImage,
   downloadImage,
   drawLines,
   generateMask,
   isMidClick,
   isRightClick,
   mouseXY,
+  resolveStoredImage,
+  resolveStoredImages,
   srcToFile,
 } from "@/lib/utils"
 import { Eraser, Eye, Redo, Undo, Expand, Download } from "lucide-react"
@@ -114,6 +117,13 @@ export default function Editor(props: EditorProps) {
   const [{ x, y }, setCoords] = useState({ x: -1, y: -1 })
   const [showBrush, setShowBrush] = useState(false)
   const [showRefBrush, setShowRefBrush] = useState(false)
+  const [renderImages, setRenderImages] = useState<HTMLImageElement[]>([])
+  const [temporaryMaskImages, setTemporaryMaskImages] = useState<
+    HTMLImageElement[]
+  >([])
+  const [extraMaskImages, setExtraMaskImages] = useState<HTMLImageElement[]>([])
+  const [interactiveSegMask, setInteractiveSegMask] =
+    useState<HTMLImageElement | null>(null)
   const [isPanning, setIsPanning] = useState<boolean>(false)
 
   const [scale, setScale] = useState<number>(1)
@@ -136,6 +146,70 @@ export default function Editor(props: EditorProps) {
   }, [curLineGroup])
 
   useEffect(() => {
+    let isActive = true
+    const loadRenders = async () => {
+      const resolved = await resolveStoredImages(renders)
+      if (isActive) {
+        setRenderImages(resolved)
+      }
+    }
+    void loadRenders()
+    return () => {
+      isActive = false
+    }
+  }, [renders])
+
+  useEffect(() => {
+    let isActive = true
+    const loadMasks = async () => {
+      const resolved = await resolveStoredImages(temporaryMasks)
+      if (isActive) {
+        setTemporaryMaskImages(resolved)
+      }
+    }
+    void loadMasks()
+    return () => {
+      isActive = false
+    }
+  }, [temporaryMasks])
+
+  useEffect(() => {
+    let isActive = true
+    const loadMasks = async () => {
+      const resolved = await resolveStoredImages(extraMasks)
+      if (isActive) {
+        setExtraMaskImages(resolved)
+      }
+    }
+    void loadMasks()
+    return () => {
+      isActive = false
+    }
+  }, [extraMasks])
+
+  useEffect(() => {
+    let isActive = true
+    const loadMask = async () => {
+      if (!interactiveSegState.tmpInteractiveSegMask) {
+        if (isActive) {
+          setInteractiveSegMask(null)
+        }
+        return
+      }
+      const resolved = await resolveStoredImage(
+        interactiveSegState.tmpInteractiveSegMask
+      )
+      if (isActive) {
+        setInteractiveSegMask(resolved)
+      }
+    }
+    void loadMask()
+    return () => {
+      isActive = false
+    }
+  }, [interactiveSegState.tmpInteractiveSegMask])
+
+  useEffect(() => {
     if (
       !imageContext ||
       !isOriginalLoaded ||
@@ -144,7 +218,10 @@ export default function Editor(props: EditorProps) {
     ) {
       return
     }
-    const render = renders.length === 0 ? original : renders[renders.length - 1]
+    const render =
+      renderImages.length === 0
+        ? original
+        : renderImages[renderImages.length - 1]
     imageContext.canvas.width = imageWidth
     imageContext.canvas.height = imageHeight
 
@@ -156,7 +233,7 @@ export default function Editor(props: EditorProps) {
     )
     imageContext.drawImage(render, 0, 0, imageWidth, imageHeight)
   }, [
-    renders,
+    renderImages,
     original,
     isOriginalLoaded,
     imageContext,
@@ -176,31 +253,23 @@ export default function Editor(props: EditorProps) {
     context.canvas.width = imageWidth
     context.canvas.height = imageHeight
     context.clearRect(0, 0, context.canvas.width, context.canvas.height)
-    temporaryMasks.forEach((maskImage) => {
+    temporaryMaskImages.forEach((maskImage) => {
       context.drawImage(maskImage, 0, 0, imageWidth, imageHeight)
     })
-    extraMasks.forEach((maskImage) => {
+    extraMaskImages.forEach((maskImage) => {
       context.drawImage(maskImage, 0, 0, imageWidth, imageHeight)
     })
 
-    if (
-      interactiveSegState.isInteractiveSeg &&
-      interactiveSegState.tmpInteractiveSegMask
-    ) {
-      context.drawImage(
-        interactiveSegState.tmpInteractiveSegMask,
-        0,
-        0,
-        imageWidth,
-        imageHeight
-      )
+    if (interactiveSegState.isInteractiveSeg && interactiveSegMask) {
+      context.drawImage(interactiveSegMask, 0, 0, imageWidth, imageHeight)
     }
     drawLines(context, curLineGroup)
   }, [
-    temporaryMasks,
-    extraMasks,
+    temporaryMaskImages,
+    extraMaskImages,
     isOriginalLoaded,
-    interactiveSegState,
+    interactiveSegState.isInteractiveSeg,
+    interactiveSegMask,
     context,
     curLineGroup,
     imageHeight,
@@ -211,7 +280,7 @@ export default function Editor(props: EditorProps) {
     let targetFile = file
     if (renders.length > 0) {
       const lastRender = renders[renders.length - 1]
-      targetFile = await srcToFile(lastRender.currentSrc, file.name, file.type)
+      targetFile = await srcToFile(lastRender.src, file.name, file.type)
     }
     return targetFile
   }, [file, renders])
@@ -392,7 +461,8 @@ export default function Editor(props: EditorProps) {
       const { blob } = res
       const img = new Image()
       img.onload = () => {
-        updateInteractiveSegState({ tmpInteractiveSegMask: img })
+        const storedMask = createStoredImage(img)
+        updateInteractiveSegState({ tmpInteractiveSegMask: storedMask })
       }
       img.src = blob
     } catch (e: any) {
@@ -530,11 +600,9 @@ export default function Editor(props: EditorProps) {
     }
     if (enableAutoSaving && renders.length > 0) {
       try {
-        await downloadToOutput(
-          renders[renders.length - 1],
-          file.name,
-          file.type
-        )
+        const lastRender = renders[renders.length - 1]
+        const resolvedRender = await resolveStoredImage(lastRender)
+        await downloadToOutput(resolvedRender, file.name, file.type)
         toast({
           description: "Save image success",
         })
@@ -551,7 +619,7 @@ export default function Editor(props: EditorProps) {
     // TODO: download to output directory
     const name = file.name.replace(/(\.[\w\d_-]+)$/i, "_cleanup$1")
     const curRender = renders[renders.length - 1]
-    downloadImage(curRender.currentSrc, name)
+    downloadImage(curRender.src, name)
     if (settings.enableDownloadMask) {
       let maskFileName = file.name.replace(/(\.[\w\d_-]+)$/i, "_mask$1")
       maskFileName = maskFileName.replace(/\.[^/.]+$/, ".jpg")

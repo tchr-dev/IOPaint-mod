@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest"
 
+import { createStoredImage } from "../utils"
 import { useStore } from "../states"
 import type { Line, LineGroup } from "../types"
 
@@ -67,8 +68,8 @@ describe("editor undo/redo", () => {
 
   it("undo/redo renders in auto mode", () => {
     setManualMode(false)
-    const imageA = new Image()
-    const imageB = new Image()
+    const imageA = createStoredImage(new Image())
+    const imageB = createStoredImage(new Image())
     const lineGroupA: LineGroup = [makeLine(1, 1)]
     const lineGroupB: LineGroup = [makeLine(2, 2)]
 

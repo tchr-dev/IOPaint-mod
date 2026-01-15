@@ -1,5 +1,5 @@
-import { act } from "react"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import { act } from "react-dom/test-utils"
 import { createRoot } from "react-dom/client"
 
 import { GenerationHistory } from "../GenerationHistory"
@@ -18,7 +18,8 @@ vi.mock("../../../lib/openai-api", async () => {
 })
 
 beforeAll(() => {
-  globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+    true
 
   class ResizeObserver {
     observe() {
