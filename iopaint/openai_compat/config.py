@@ -21,6 +21,7 @@ class OpenAIConfig:
         AIE_OPENAI_MODEL: Default model for image operations (default: gpt-image-1)
         AIE_OPENAI_TIMEOUT_S: Request timeout in seconds (default: 120)
         AIE_OPENAI_REFINE_MODEL: Model for prompt refinement (default: gpt-4o-mini)
+        AIE_OPENAI_MODELS_CACHE_TTL_S: Model list cache TTL in seconds (default: 3600)
     """
 
     backend: str = field(
@@ -42,6 +43,9 @@ class OpenAIConfig:
     )
     refine_model: str = field(
         default_factory=lambda: os.getenv("AIE_OPENAI_REFINE_MODEL", "gpt-4o-mini")
+    )
+    models_cache_ttl_s: int = field(
+        default_factory=lambda: int(os.getenv("AIE_OPENAI_MODELS_CACHE_TTL_S", "3600"))
     )
 
     @property
@@ -72,5 +76,6 @@ class OpenAIConfig:
             f"api_key={masked_key!r}, "
             f"base_url={self.base_url!r}, "
             f"model={self.model!r}, "
-            f"timeout_s={self.timeout_s})"
+            f"timeout_s={self.timeout_s}, "
+            f"models_cache_ttl_s={self.models_cache_ttl_s})"
         )

@@ -17,7 +17,7 @@
  * ```
  */
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import {
   Loader2,
   Wand2,
@@ -45,6 +45,8 @@ export function OpenAIEditPanel() {
     editPrompt,
     setOpenAIRefinedPrompt,
     runOpenAIEdit,
+    runOpenAIOutpaint,
+    runOpenAIVariation,
     setOpenAIEditMode,
     budgetStatus,
     // Get current image
@@ -60,12 +62,17 @@ export function OpenAIEditPanel() {
     state.openAIState.openAIRefinedPrompt,
     state.setOpenAIRefinedPrompt,
     state.runOpenAIEdit,
+    state.runOpenAIOutpaint,
+    state.runOpenAIVariation,
     state.setOpenAIEditMode,
     state.openAIState.budgetStatus,
     state.getCurrentTargetFile,
     state.setEditSourceImage,
     state.openAIState.editSourceImageDataUrl,
   ])
+  const [toolMode, setToolMode] = useState<"edit" | "outpaint" | "variation">(
+    "edit"
+  )
 
   // Set up source image when entering edit mode
   useEffect(() => {
@@ -92,6 +99,22 @@ export function OpenAIEditPanel() {
   const hasPrompt = editPrompt.trim().length > 0
   const isBudgetBlocked = budgetStatus?.status === "blocked"
   const canEdit = hasMask && hasPrompt && !isGenerating && !isBudgetBlocked
+  const canOutpaint = canEdit
+  const canVariation =
+    !!editSourceImageDataUrl && !isGenerating && !isBudgetBlocked
+
+  const primaryAction = () => {
+    if (toolMode === "variation") {
+      return runOpenAIVariation()
+    }
+    if (toolMode === "outpaint") {
+      return runOpenAIOutpaint()
+    }
+    return runOpenAIEdit()
+  }
+
+  const primaryDisabled =
+    toolMode === "variation" ? !canVariation : !canEdit
 
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -105,10 +128,43 @@ export function OpenAIEditPanel() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h3 className="text-lg font-semibold">Edit Image</h3>
+        <h3 className="text-lg font-semibold">
+          {toolMode === "variation"
+            ? "Create Variation"
+            : toolMode === "outpaint"
+            ? "Outpaint Image"
+            : "Edit Image"}
+        </h3>
       </div>
 
       <Separator />
+
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant={toolMode === "edit" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setToolMode("edit")}
+        >
+          Edit
+        </Button>
+        <Button
+          type="button"
+          variant={toolMode === "outpaint" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setToolMode("outpaint")}
+        >
+          Outpaint
+        </Button>
+        <Button
+          type="button"
+          variant={toolMode === "variation" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setToolMode("variation")}
+        >
+          Variation
+        </Button>
+      </div>
 
       {/* Source image preview */}
       <div className="flex flex-col gap-2">
@@ -130,43 +186,60 @@ export function OpenAIEditPanel() {
         </div>
       </div>
 
-      {/* Mask status */}
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-foreground">Mask</label>
-        <div
-          className={cn(
-            "p-3 rounded-lg border",
-            hasMask
-              ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
-              : "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800"
-          )}
-        >
-          {hasMask ? (
-            <p className="text-sm text-green-700 dark:text-green-300">
-              Mask is ready. The highlighted area will be edited.
-            </p>
-          ) : (
-            <p className="text-sm text-yellow-700 dark:text-yellow-300 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Draw a mask on the canvas to select the area to edit.
-            </p>
-          )}
-        </div>
-      </div>
+      {toolMode !== "variation" && (
+        <>
+          {/* Mask status */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-foreground">Mask</label>
+            <div
+              className={cn(
+                "p-3 rounded-lg border",
+                hasMask
+                  ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+                  : "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800"
+              )}
+            >
+              {hasMask ? (
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  Mask is ready. The highlighted area will be edited.
+                </p>
+              ) : (
+                <p className="text-sm text-yellow-700 dark:text-yellow-300 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Draw a mask on the canvas to select the area to edit.
+                </p>
+              )}
+            </div>
+          </div>
 
-      {/* Edit prompt */}
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-foreground">
-          What do you want to change?
-        </label>
-        <Textarea
-          value={editPrompt}
-          onChange={(e) => setOpenAIRefinedPrompt(e.target.value)}
-          placeholder="Describe the edit... e.g., 'Replace with a golden retriever'"
-          className="min-h-[80px] resize-none"
-          disabled={isGenerating}
-        />
-      </div>
+          {/* Edit prompt */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-foreground">
+              {toolMode === "outpaint"
+                ? "What should be added?"
+                : "What do you want to change?"}
+            </label>
+            <Textarea
+              value={editPrompt}
+              onChange={(e) => setOpenAIRefinedPrompt(e.target.value)}
+              placeholder={
+                toolMode === "outpaint"
+                  ? "Describe what to extend beyond the edges..."
+                  : "Describe the edit... e.g., 'Replace with a golden retriever'"
+              }
+              className="min-h-[80px] resize-none"
+              disabled={isGenerating}
+            />
+          </div>
+        </>
+      )}
+
+      {toolMode === "variation" && (
+        <div className="text-sm text-muted-foreground">
+          Variations create alternate versions of the source image without a
+          prompt.
+        </div>
+      )}
 
       {/* Presets */}
       <GenerationPresets />
@@ -176,26 +249,34 @@ export function OpenAIEditPanel() {
 
       {/* Apply button */}
       <Button
-        onClick={runOpenAIEdit}
-        disabled={!canEdit}
+        onClick={primaryAction}
+        disabled={primaryDisabled}
         size="lg"
         className="w-full gap-2"
       >
         {isGenerating ? (
           <>
             <Loader2 className="h-5 w-5 animate-spin" />
-            Applying Edit...
+            {toolMode === "variation"
+              ? "Creating Variation..."
+              : toolMode === "outpaint"
+              ? "Outpainting..."
+              : "Applying Edit..."}
           </>
         ) : (
           <>
             <Wand2 className="h-5 w-5" />
-            Apply Edit
+            {toolMode === "variation"
+              ? "Create Variation"
+              : toolMode === "outpaint"
+              ? "Apply Outpaint"
+              : "Apply Edit"}
           </>
         )}
       </Button>
 
       {/* Validation messages */}
-      {!hasMask && !isGenerating && (
+      {toolMode !== "variation" && !hasMask && !isGenerating && (
         <p className="text-sm text-center text-muted-foreground">
           Draw on the canvas to create a mask first
         </p>

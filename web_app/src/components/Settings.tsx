@@ -56,6 +56,8 @@ const formSchema = z.object({
   enableManualInpainting: z.boolean(),
   enableUploadMask: z.boolean(),
   enableAutoExtractPrompt: z.boolean(),
+  openAIProvider: z.enum(["server", "proxyapi", "openrouter"]),
+  openAIToolMode: z.enum(["local", "prompt", "service"]),
   removeBGModel: z.string(),
   realesrganModel: z.string(),
   interactiveSegModel: z.string(),
@@ -78,6 +80,8 @@ export function SettingsDialog() {
     fileManagerState,
     setAppModel,
     setServerConfig,
+    fetchOpenAIModels,
+    isOpenAIMode,
   ] = useStore((state) => [
     state.updateAppState,
     state.settings,
@@ -85,6 +89,8 @@ export function SettingsDialog() {
     state.fileManagerState,
     state.setModel,
     state.setServerConfig,
+    state.fetchOpenAIModels,
+    state.openAIState.isOpenAIMode,
   ])
   const { toast } = useToast()
   const [model, setModel] = useState<ModelInfo>(settings.model)
@@ -111,6 +117,8 @@ export function SettingsDialog() {
       enableManualInpainting: settings.enableManualInpainting,
       enableUploadMask: settings.enableUploadMask,
       enableAutoExtractPrompt: settings.enableAutoExtractPrompt,
+      openAIProvider: settings.openAIProvider,
+      openAIToolMode: settings.openAIToolMode,
       inputDirectory: fileManagerState.inputDirectory,
       outputDirectory: fileManagerState.outputDirectory,
       removeBGModel: serverConfig?.removeBGModel,
@@ -135,7 +143,15 @@ export function SettingsDialog() {
       enableManualInpainting: values.enableManualInpainting,
       enableUploadMask: values.enableUploadMask,
       enableAutoExtractPrompt: values.enableAutoExtractPrompt,
+      openAIProvider: values.openAIProvider,
+      openAIToolMode: values.openAIToolMode,
     })
+    if (
+      settings.openAIProvider !== values.openAIProvider &&
+      isOpenAIMode
+    ) {
+      fetchOpenAIModels()
+    }
 
     // TODO: validate input/output Directory
     // updateFileManagerState({
@@ -463,6 +479,82 @@ export function SettingsDialog() {
                   onCheckedChange={field.onChange}
                 />
               </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <Separator />
+
+        <FormField
+          control={form.control}
+          name="openAIProvider"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <FormLabel>OpenAI provider</FormLabel>
+                <FormDescription>
+                  Select the OpenAI-compatible API host for OpenAI mode.
+                </FormDescription>
+              </div>
+              <Select
+                onValueChange={field.onChange}
+                defaultValue={field.value}
+              >
+                <FormControl>
+                  <SelectTrigger className="w-[220px]">
+                    <SelectValue placeholder="Select provider" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent align="end">
+                  <SelectGroup>
+                    <SelectItem value="server">Server default</SelectItem>
+                    <SelectItem value="proxyapi">
+                      ProxyAPI (proxyapi.ru)
+                    </SelectItem>
+                    <SelectItem value="openrouter">
+                      OpenRouter (openrouter.ai)
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </FormItem>
+          )}
+        />
+
+        <Separator />
+
+        <FormField
+          control={form.control}
+          name="openAIToolMode"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <FormLabel>Image tool mode</FormLabel>
+                <FormDescription>
+                  Choose how background removal and upscaling are executed.
+                </FormDescription>
+              </div>
+              <Select
+                onValueChange={field.onChange}
+                defaultValue={field.value}
+              >
+                <FormControl>
+                  <SelectTrigger className="w-[220px]">
+                    <SelectValue placeholder="Select tool mode" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent align="end">
+                  <SelectGroup>
+                    <SelectItem value="local">Local models</SelectItem>
+                    <SelectItem value="prompt">
+                      API via specialized prompts
+                    </SelectItem>
+                    <SelectItem value="service" disabled>
+                      API specialized services (coming soon)
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </FormItem>
           )}
         />

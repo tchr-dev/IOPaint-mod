@@ -66,10 +66,11 @@ def draw_glyph(font, text):
     ratio = min(W * 0.9 / text_width, H * 0.9 / text_height)
     new_font = font.font_variant(size=int(g_size * ratio))
 
-    text_width, text_height = new_font.getsize(text)
-    offset_x, offset_y = new_font.getoffset(text)
-    x = (img.width - text_width) // 2
-    y = (img.height - text_height) // 2 - offset_y // 2
+    left, top, right, bottom = new_font.getbbox(text)
+    text_width = max(right - left, 1)
+    text_height = max(bottom - top, 1)
+    x = (img.width - text_width) // 2 - left
+    y = (img.height - text_height) // 2 - top
     draw.text((x, y), text, font=new_font, fill="white")
     img = np.expand_dims(np.array(img), axis=2).astype(np.float64)
     return img
@@ -81,7 +82,7 @@ def draw_glyph2(
     enlarge_polygon = polygon * scale
     rect = cv2.minAreaRect(enlarge_polygon)
     box = cv2.boxPoints(rect)
-    box = np.int0(box)
+    box = box.astype(int)
     w, h = rect[1]
     angle = rect[2]
     if angle < -45:

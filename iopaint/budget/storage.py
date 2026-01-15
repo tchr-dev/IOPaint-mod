@@ -20,9 +20,10 @@ class BudgetStorage:
         1: Initial budget tables (budget_ledger, dedupe_cache, rate_limits)
         2: Added history tables (generation_jobs, images) - see iopaint/storage/
         3: Added history_snapshots table
+        4: Added models_cache table
     """
 
-    SCHEMA_VERSION = 3
+    SCHEMA_VERSION = 4
 
     def __init__(self, config: BudgetConfig):
         self.config = config
@@ -149,6 +150,18 @@ class BudgetStorage:
             "CREATE INDEX idx_snapshots_created ON history_snapshots(created_at DESC)"
         )
 
+        # Models cache table (provider -> cached model list)
+        cursor.execute("""
+            CREATE TABLE models_cache (
+                provider TEXT PRIMARY KEY,
+                payload TEXT NOT NULL,
+                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX idx_models_cache_fetched ON models_cache(fetched_at DESC)"
+        )
+
     def _migrate_schema(self, cursor: sqlite3.Cursor, from_version: int) -> None:
         """Migrate schema from older version."""
         if from_version < 2:
@@ -224,6 +237,19 @@ class BudgetStorage:
             )
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_snapshots_created ON history_snapshots(created_at DESC)"
+            )
+
+        if from_version < 4:
+            # Version 4: Add models cache table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS models_cache (
+                    provider TEXT PRIMARY KEY,
+                    payload TEXT NOT NULL,
+                    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_models_cache_fetched ON models_cache(fetched_at DESC)"
             )
 
         cursor.execute(

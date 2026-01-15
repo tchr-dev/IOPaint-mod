@@ -62,12 +62,14 @@ const Plugins = () => {
     isPluginRunning,
     updateInteractiveSegState,
     runRenderablePlugin,
+    openAIToolMode,
   ] = useStore((state) => [
     state.file,
     state.serverConfig.plugins,
     state.isPluginRunning,
     state.updateInteractiveSegState,
     state.runRenderablePlugin,
+    state.settings.openAIToolMode,
   ])
   const disabled = !file
 
@@ -114,6 +116,8 @@ const Plugins = () => {
 
   const renderGenImageAndMaskPlugin = (plugin: PluginInfo) => {
     const { IconClass, showName } = pluginMap[plugin.name as PluginName]
+    const disableMask =
+      plugin.name === PluginName.RemoveBG && openAIToolMode !== "local"
     return (
       <DropdownMenuSub key={plugin.name}>
         <DropdownMenuSubTrigger disabled={disabled}>
@@ -126,7 +130,10 @@ const Plugins = () => {
           <DropdownMenuItem onClick={() => onPluginClick(false, plugin.name)}>
             Remove Background
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onPluginClick(true, plugin.name)}>
+          <DropdownMenuItem
+            onClick={() => onPluginClick(true, plugin.name)}
+            disabled={disableMask}
+          >
             Generate Mask
           </DropdownMenuItem>
         </DropdownMenuSubContent>

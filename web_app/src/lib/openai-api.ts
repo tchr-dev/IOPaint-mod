@@ -21,7 +21,19 @@ import type {
   BudgetStatus,
   OpenAIImageSize,
   OpenAIImageQuality,
+  OpenAIProvider,
 } from "./types"
+
+export const OPENAI_PROVIDER_BASE_URLS: Record<OpenAIProvider, string> = {
+  server: "",
+  proxyapi: "https://api.proxyapi.ru/openai/v1",
+  openrouter: "https://openrouter.ai/api/v1",
+}
+
+export function resolveOpenAIBaseUrl(provider: OpenAIProvider): string | undefined {
+  const url = OPENAI_PROVIDER_BASE_URLS[provider]
+  return url ? url : undefined
+}
 
 // ============================================================================
 // Error Handling
@@ -63,6 +75,16 @@ async function handleErrorResponse(res: Response): Promise<never> {
   throw new OpenAIApiError(errorMessage, res.status, isRetryable, errorType)
 }
 
+function withOpenAIHeaders(
+  headers: Record<string, string>,
+  baseUrl?: string
+): Record<string, string> {
+  if (baseUrl) {
+    headers["X-OpenAI-Base-URL"] = baseUrl
+  }
+  return headers
+}
+
 // ============================================================================
 // Model Operations
 // ============================================================================
@@ -79,11 +101,70 @@ async function handleErrorResponse(res: Response): Promise<never> {
  * console.log(models[0].id) // "gpt-image-1"
  * ```
  */
-export async function listOpenAIModels(): Promise<OpenAIModelInfo[]> {
+export async function listOpenAIModels(
+  baseUrl?: string
+): Promise<OpenAIModelInfo[]> {
   const res = await fetch(`${API_ENDPOINT}/openai/models`, {
     method: "GET",
     headers: {
-      "X-Session-Id": getOrCreateSessionId(),
+      ...withOpenAIHeaders(
+        {
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  const data = await res.json()
+  return data.models || data
+}
+
+/**
+ * Fetch cached OpenAI-compatible models from the backend.
+ */
+export async function listOpenAIModelsCached(
+  baseUrl?: string
+): Promise<OpenAIModelInfo[]> {
+  const res = await fetch(`${API_ENDPOINT}/openai/models/cached`, {
+    method: "GET",
+    headers: {
+      ...withOpenAIHeaders(
+        {
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  const data = await res.json()
+  return data.models || data
+}
+
+/**
+ * Refresh the cached OpenAI-compatible models from the backend.
+ */
+export async function refreshOpenAIModels(
+  baseUrl?: string
+): Promise<OpenAIModelInfo[]> {
+  const res = await fetch(`${API_ENDPOINT}/openai/models/refresh`, {
+    method: "POST",
+    headers: {
+      ...withOpenAIHeaders(
+        {
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
     },
   })
 
@@ -122,13 +203,19 @@ export async function listOpenAIModels(): Promise<OpenAIModelInfo[]> {
  * ```
  */
 export async function refinePrompt(
-  request: RefinePromptRequest
+  request: RefinePromptRequest,
+  baseUrl?: string
 ): Promise<RefinePromptResponse> {
   const res = await fetch(`${API_ENDPOINT}/openai/refine`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      "X-Session-Id": getOrCreateSessionId(),
+      ...withOpenAIHeaders(
+        {
+          "Content-Type": "application/json",
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
     },
     body: JSON.stringify({
       prompt: request.prompt,
@@ -175,13 +262,19 @@ export async function refinePrompt(
  * ```
  */
 export async function generateImage(
-  request: GenerateImageRequest
+  request: GenerateImageRequest,
+  baseUrl?: string
 ): Promise<Blob> {
   const res = await fetch(`${API_ENDPOINT}/openai/generate`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      "X-Session-Id": getOrCreateSessionId(),
+      ...withOpenAIHeaders(
+        {
+          "Content-Type": "application/json",
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
     },
     body: JSON.stringify({
       prompt: request.prompt,
@@ -209,9 +302,10 @@ export async function generateImage(
  * @returns Data URL string (e.g., "data:image/png;base64,...")
  */
 export async function generateImageAsDataUrl(
-  request: GenerateImageRequest
+  request: GenerateImageRequest,
+  baseUrl?: string
 ): Promise<string> {
-  const blob = await generateImage(request)
+  const blob = await generateImage(request, baseUrl)
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onloadend = () => resolve(reader.result as string)
@@ -245,7 +339,8 @@ export async function generateImageAsDataUrl(
  * )
  * ```
  */
-export async function editImage(
+async function postImageEdit(
+  endpoint: string,
   image: Blob,
   mask: Blob,
   prompt: string,
@@ -254,7 +349,8 @@ export async function editImage(
     size?: OpenAIImageSize
     quality?: OpenAIImageQuality
     model?: string
-  }
+  },
+  baseUrl?: string
 ): Promise<Blob> {
   const formData = new FormData()
   formData.append("image", image, "image.png")
@@ -266,10 +362,15 @@ export async function editImage(
   if (options?.quality) formData.append("quality", options.quality)
   if (options?.model) formData.append("model", options.model)
 
-  const res = await fetch(`${API_ENDPOINT}/openai/edit`, {
+  const res = await fetch(`${API_ENDPOINT}${endpoint}`, {
     method: "POST",
     headers: {
-      "X-Session-Id": getOrCreateSessionId(),
+      ...withOpenAIHeaders(
+        {
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
     },
     body: formData,
   })
@@ -279,6 +380,28 @@ export async function editImage(
   }
 
   return res.blob()
+}
+
+export async function editImage(
+  image: Blob,
+  mask: Blob,
+  prompt: string,
+  options?: {
+    n?: number
+    size?: OpenAIImageSize
+    quality?: OpenAIImageQuality
+    model?: string
+  },
+  baseUrl?: string
+): Promise<Blob> {
+  return postImageEdit(
+    "/openai/edit",
+    image,
+    mask,
+    prompt,
+    options,
+    baseUrl
+  )
 }
 
 /**
@@ -294,15 +417,190 @@ export async function editImageAsDataUrl(
     size?: OpenAIImageSize
     quality?: OpenAIImageQuality
     model?: string
-  }
+  },
+  baseUrl?: string
 ): Promise<string> {
-  const blob = await editImage(image, mask, prompt, options)
+  const blob = await editImage(image, mask, prompt, options, baseUrl)
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onloadend = () => resolve(reader.result as string)
     reader.onerror = reject
     reader.readAsDataURL(blob)
   })
+}
+
+export async function outpaintImage(
+  image: Blob,
+  mask: Blob,
+  prompt: string,
+  options?: {
+    n?: number
+    size?: OpenAIImageSize
+    quality?: OpenAIImageQuality
+    model?: string
+  },
+  baseUrl?: string
+): Promise<Blob> {
+  return postImageEdit(
+    "/openai/outpaint",
+    image,
+    mask,
+    prompt,
+    options,
+    baseUrl
+  )
+}
+
+export async function outpaintImageAsDataUrl(
+  image: Blob,
+  mask: Blob,
+  prompt: string,
+  options?: {
+    n?: number
+    size?: OpenAIImageSize
+    quality?: OpenAIImageQuality
+    model?: string
+  },
+  baseUrl?: string
+): Promise<string> {
+  const blob = await outpaintImage(image, mask, prompt, options, baseUrl)
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+export async function createVariation(
+  image: Blob,
+  options?: {
+    n?: number
+    size?: OpenAIImageSize
+    model?: string
+  },
+  baseUrl?: string
+): Promise<Blob> {
+  const formData = new FormData()
+  formData.append("image", image, "image.png")
+  if (options?.n) formData.append("n", String(options.n))
+  if (options?.size) formData.append("size", options.size)
+  if (options?.model) formData.append("model", options.model)
+
+  const res = await fetch(`${API_ENDPOINT}/openai/variations`, {
+    method: "POST",
+    headers: {
+      ...withOpenAIHeaders(
+        {
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
+    },
+    body: formData,
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.blob()
+}
+
+export async function createVariationAsDataUrl(
+  image: Blob,
+  options?: {
+    n?: number
+    size?: OpenAIImageSize
+    model?: string
+  },
+  baseUrl?: string
+): Promise<string> {
+  const blob = await createVariation(image, options, baseUrl)
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+// ============================================================================
+// Tool Helpers (Upscale / Background Remove)
+// ============================================================================
+
+export async function upscaleImage(
+  image: Blob,
+  options?: {
+    scale?: number
+    size?: OpenAIImageSize
+    model?: string
+    prompt?: string
+    mode?: "local" | "prompt" | "service"
+  },
+  baseUrl?: string
+): Promise<Blob> {
+  const formData = new FormData()
+  formData.append("image", image, "image.png")
+  if (options?.scale) formData.append("scale", String(options.scale))
+  if (options?.size) formData.append("size", options.size)
+  if (options?.model) formData.append("model", options.model)
+  if (options?.prompt) formData.append("prompt", options.prompt)
+  if (options?.mode) formData.append("mode", options.mode)
+
+  const res = await fetch(`${API_ENDPOINT}/openai/upscale`, {
+    method: "POST",
+    headers: {
+      ...withOpenAIHeaders(
+        {
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
+    },
+    body: formData,
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.blob()
+}
+
+export async function removeBackground(
+  image: Blob,
+  options?: {
+    prompt?: string
+    model?: string
+    mode?: "local" | "prompt" | "service"
+  },
+  baseUrl?: string
+): Promise<Blob> {
+  const formData = new FormData()
+  formData.append("image", image, "image.png")
+  if (options?.prompt) formData.append("prompt", options.prompt)
+  if (options?.model) formData.append("model", options.model)
+  if (options?.mode) formData.append("mode", options.mode)
+
+  const res = await fetch(`${API_ENDPOINT}/openai/background-remove`, {
+    method: "POST",
+    headers: {
+      ...withOpenAIHeaders(
+        {
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
+    },
+    body: formData,
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  return res.blob()
 }
 
 // ============================================================================

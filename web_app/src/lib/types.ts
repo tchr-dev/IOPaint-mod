@@ -66,6 +66,10 @@ export enum PluginName {
   InteractiveSeg = "InteractiveSeg",
 }
 
+export type OpenAIToolMode = "local" | "prompt" | "service"
+
+export type OpenAIProvider = "server" | "proxyapi" | "openrouter"
+
 export interface PluginParams {
   upscale: number
 }

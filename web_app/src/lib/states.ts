@@ -26,6 +26,8 @@ import {
   GenerationJob,
   HistorySnapshot,
   OpenAIModelInfo,
+  OpenAIProvider,
+  OpenAIToolMode,
   PRESET_CONFIGS,
   GenerateImageRequest,
 } from "./types"
@@ -47,14 +49,20 @@ import {
 } from "./utils"
 import inpaint, { getGenInfo, postAdjustMask, runPlugin } from "./api"
 import {
-  listOpenAIModels,
+  listOpenAIModelsCached,
+  refreshOpenAIModels,
   refinePrompt as apiRefinePrompt,
   generateImageAsDataUrl,
   editImageAsDataUrl,
+  outpaintImageAsDataUrl,
+  createVariationAsDataUrl,
+  upscaleImage,
+  removeBackground,
   estimateGenerationCost,
   getOpenAIBudgetStatus,
   createThumbnail,
   generateFingerprint,
+  resolveOpenAIBaseUrl,
   // History API (Epic 3)
   fetchHistory as apiFetchHistory,
   createHistoryJob as apiCreateHistoryJob,
@@ -67,6 +75,7 @@ import {
   deleteHistorySnapshot as apiDeleteHistorySnapshot,
   clearHistorySnapshots as apiClearHistorySnapshots,
   type BackendHistorySnapshot,
+  OpenAIApiError,
 } from "./openai-api"
 import { toast } from "@/components/ui/use-toast"
 
@@ -92,6 +101,8 @@ export type Settings = {
   enableManualInpainting: boolean
   enableUploadMask: boolean
   enableAutoExtractPrompt: boolean
+  openAIProvider: OpenAIProvider
+  openAIToolMode: OpenAIToolMode
   showCropper: boolean
   showExtender: boolean
   extenderDirection: ExtenderDirection
@@ -270,6 +281,8 @@ type OpenAIAction = {
   // Edit flow
   setEditSourceImage: (dataUrl: string | null) => void
   runOpenAIEdit: () => Promise<void>
+  runOpenAIOutpaint: () => Promise<void>
+  runOpenAIVariation: () => Promise<void>
 }
 
 type AppState = {
@@ -471,6 +484,8 @@ const defaultValues: AppState = {
     enableManualInpainting: false,
     enableUploadMask: false,
     enableAutoExtractPrompt: true,
+    openAIProvider: "server",
+    openAIToolMode: "local",
     ldmSteps: 30,
     ldmSampler: LDMSampler.ddim,
     zitsWireframe: true,
@@ -731,6 +746,10 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         params: PluginParams = { upscale: 1 }
       ) => {
         const { renders, lineGroups } = get().editorState
+        const toolMode = get().settings.openAIToolMode
+        const baseUrl = resolveOpenAIBaseUrl(get().settings.openAIProvider)
+        const isSpecialTool =
+          pluginName === "RemoveBG" || pluginName === "RealESRGAN"
         set((state) => {
           state.isPluginRunning = true
         })
@@ -738,17 +757,52 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         try {
           const start = new Date()
           const targetFile = await get().getCurrentTargetFile()
-          const res = await runPlugin(
-            genMask,
-            pluginName,
-            targetFile,
-            params.upscale
-          )
-          const { blob } = res
+          let blobUrl: string | null = null
+
+          if (isSpecialTool && toolMode !== "local") {
+            if (genMask) {
+              throw new Error("Mask generation is only supported in local mode.")
+            }
+            if (toolMode === "service") {
+              throw new Error("Specialized services are not configured yet.")
+            }
+
+            if (pluginName === "RealESRGAN") {
+              const blob = await upscaleImage(
+                targetFile,
+                {
+                  scale: params.upscale,
+                  mode: "prompt",
+                },
+                baseUrl
+              )
+              blobUrl = URL.createObjectURL(blob)
+            } else if (pluginName === "RemoveBG") {
+              const blob = await removeBackground(
+                targetFile,
+                {
+                  mode: "prompt",
+                },
+                baseUrl
+              )
+              blobUrl = URL.createObjectURL(blob)
+            }
+          } else {
+            const res = await runPlugin(
+              genMask,
+              pluginName,
+              targetFile,
+              params.upscale
+            )
+            blobUrl = res.blob
+          }
+          if (!blobUrl) {
+            throw new Error("Tool did not return an image.")
+          }
 
           if (!genMask) {
             const newRender = new Image()
-            await loadImage(newRender, blob)
+            await loadImage(newRender, blobUrl)
             get().setImageSize(newRender.width, newRender.height)
             const newRenders = [...renders, newRender]
             const newLineGroups = [...lineGroups, []]
@@ -758,7 +812,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
             })
           } else {
             const newMask = new Image()
-            await loadImage(newMask, blob)
+            await loadImage(newMask, blobUrl)
             set((state) => {
               state.editorState.extraMasks.push(castDraft(newMask))
             })
@@ -1330,7 +1384,22 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
       // Model management
       fetchOpenAIModels: async () => {
         try {
-          const models = await listOpenAIModels()
+          let models: OpenAIModelInfo[] | null = null
+          const baseUrl = resolveOpenAIBaseUrl(
+            get().settings.openAIProvider
+          )
+          try {
+            models = await listOpenAIModelsCached(baseUrl)
+          } catch (e) {
+            if (!(e instanceof OpenAIApiError) || e.statusCode !== 404) {
+              throw e
+            }
+          }
+
+          if (!models) {
+            models = await refreshOpenAIModels(baseUrl)
+          }
+
           set((state) => {
             state.openAIState.openAIModels = models
             // Set default model if not already selected
@@ -1376,7 +1445,13 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         })
 
         try {
-          const result = await apiRefinePrompt({ prompt: openAIIntent })
+          const baseUrl = resolveOpenAIBaseUrl(
+            get().settings.openAIProvider
+          )
+          const result = await apiRefinePrompt(
+            { prompt: openAIIntent },
+            baseUrl
+          )
           set((state) => {
             state.openAIState.openAIRefinedPrompt = result.refinedPrompt
           })
@@ -1537,7 +1612,13 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         })
 
         try {
-          const resultDataUrl = await generateImageAsDataUrl(pendingGenerationRequest)
+          const baseUrl = resolveOpenAIBaseUrl(
+            get().settings.openAIProvider
+          )
+          const resultDataUrl = await generateImageAsDataUrl(
+            pendingGenerationRequest,
+            baseUrl
+          )
           const thumbnail = await createThumbnail(resultDataUrl, 128)
           const fingerprint = await generateFingerprint({
             prompt: pendingGenerationRequest.prompt,
@@ -1890,6 +1971,9 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         })
 
         try {
+          const baseUrl = resolveOpenAIBaseUrl(
+            get().settings.openAIProvider
+          )
           // Generate mask from current strokes
           const maskCanvas = generateMask(
             imageWidth,
@@ -1914,7 +1998,8 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
               model: selectedOpenAIModel,
               size: config.size,
               quality: config.quality,
-            }
+            },
+            baseUrl
           )
 
           // Add to history
@@ -1958,6 +2043,203 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           toast({
             variant: "destructive",
             description: `Edit failed: ${e.message}`,
+          })
+        } finally {
+          set((state) => {
+            state.openAIState.isOpenAIGenerating = false
+          })
+        }
+      },
+
+      runOpenAIOutpaint: async () => {
+        const {
+          openAIRefinedPrompt,
+          selectedOpenAIModel,
+          editSourceImageDataUrl,
+        } = get().openAIState
+        const { imageWidth, imageHeight } = get()
+        const { curLineGroup, extraMasks } = get().editorState
+
+        if (!editSourceImageDataUrl) {
+          toast({
+            variant: "destructive",
+            description: "Please select a source image first",
+          })
+          return
+        }
+
+        if (curLineGroup.length === 0 && extraMasks.length === 0) {
+          toast({
+            variant: "destructive",
+            description: "Please draw a mask first",
+          })
+          return
+        }
+
+        if (!openAIRefinedPrompt.trim()) {
+          toast({
+            variant: "destructive",
+            description: "Please enter an outpaint prompt",
+          })
+          return
+        }
+
+        set((state) => {
+          state.openAIState.isOpenAIGenerating = true
+        })
+
+        try {
+          const baseUrl = resolveOpenAIBaseUrl(
+            get().settings.openAIProvider
+          )
+          const maskCanvas = generateMask(
+            imageWidth,
+            imageHeight,
+            [curLineGroup],
+            extraMasks,
+            BRUSH_COLOR
+          )
+          const maskBlob = dataURItoBlob(maskCanvas.toDataURL())
+
+          const sourceResponse = await fetch(editSourceImageDataUrl)
+          const sourceBlob = await sourceResponse.blob()
+
+          const config = get().getActivePresetConfig()
+
+          const resultDataUrl = await outpaintImageAsDataUrl(
+            sourceBlob,
+            maskBlob,
+            openAIRefinedPrompt,
+            {
+              model: selectedOpenAIModel,
+              size: config.size,
+              quality: config.quality,
+            },
+            baseUrl
+          )
+
+          const jobId = crypto.randomUUID()
+          const thumbnail = await createThumbnail(resultDataUrl, 128)
+
+          const job: GenerationJob = {
+            id: jobId,
+            createdAt: Date.now(),
+            status: "succeeded",
+            intent: get().openAIState.openAIIntent,
+            refinedPrompt: openAIRefinedPrompt,
+            negativePrompt: "",
+            preset: get().openAIState.selectedPreset,
+            params: config,
+            model: selectedOpenAIModel,
+            resultImageDataUrl: resultDataUrl,
+            thumbnailDataUrl: thumbnail,
+            isEdit: true,
+          }
+
+          get().addToHistory(job)
+
+          const newRender = new Image()
+          await loadImage(newRender, resultDataUrl)
+          get().setImageSize(newRender.width, newRender.height)
+
+          set((state) => {
+            state.editorState.renders.push(castDraft(newRender))
+            state.editorState.curLineGroup = []
+            state.editorState.extraMasks = []
+          })
+
+          toast({
+            description: "Outpaint completed successfully!",
+          })
+
+          get().refreshBudgetStatus()
+        } catch (e: any) {
+          toast({
+            variant: "destructive",
+            description: `Outpaint failed: ${e.message}`,
+          })
+        } finally {
+          set((state) => {
+            state.openAIState.isOpenAIGenerating = false
+          })
+        }
+      },
+
+      runOpenAIVariation: async () => {
+        const {
+          selectedOpenAIModel,
+          editSourceImageDataUrl,
+          openAIIntent,
+          openAIRefinedPrompt,
+        } = get().openAIState
+
+        if (!editSourceImageDataUrl) {
+          toast({
+            variant: "destructive",
+            description: "Please select a source image first",
+          })
+          return
+        }
+
+        set((state) => {
+          state.openAIState.isOpenAIGenerating = true
+        })
+
+        try {
+          const baseUrl = resolveOpenAIBaseUrl(
+            get().settings.openAIProvider
+          )
+          const sourceResponse = await fetch(editSourceImageDataUrl)
+          const sourceBlob = await sourceResponse.blob()
+          const config = get().getActivePresetConfig()
+
+          const resultDataUrl = await createVariationAsDataUrl(
+            sourceBlob,
+            {
+              model: selectedOpenAIModel,
+              size: config.size,
+            },
+            baseUrl
+          )
+
+          const jobId = crypto.randomUUID()
+          const thumbnail = await createThumbnail(resultDataUrl, 128)
+
+          const job: GenerationJob = {
+            id: jobId,
+            createdAt: Date.now(),
+            status: "succeeded",
+            intent: openAIIntent || "Variation",
+            refinedPrompt: openAIRefinedPrompt || "Variation",
+            negativePrompt: "",
+            preset: get().openAIState.selectedPreset,
+            params: config,
+            model: selectedOpenAIModel,
+            resultImageDataUrl: resultDataUrl,
+            thumbnailDataUrl: thumbnail,
+          }
+
+          get().addToHistory(job)
+
+          const newRender = new Image()
+          await loadImage(newRender, resultDataUrl)
+          get().setImageSize(newRender.width, newRender.height)
+
+          set((state) => {
+            state.editorState.renders.push(castDraft(newRender))
+            state.editorState.curLineGroup = []
+            state.editorState.extraMasks = []
+          })
+
+          toast({
+            description: "Variation created successfully!",
+          })
+
+          get().refreshBudgetStatus()
+        } catch (e: any) {
+          toast({
+            variant: "destructive",
+            description: `Variation failed: ${e.message}`,
           })
         } finally {
           set((state) => {

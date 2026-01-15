@@ -1,10 +1,12 @@
 import asyncio
+import base64
+import io
 import os
 import threading
 import time
 import traceback
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 
 import cv2
 import numpy as np
@@ -22,7 +24,7 @@ except:
 
 import uvicorn
 from PIL import Image
-from fastapi import APIRouter, FastAPI, Request, UploadFile
+from fastapi import APIRouter, FastAPI, Request, UploadFile, File, Form
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,6 +64,7 @@ from iopaint.schema import (
     InteractiveSegModel,
     RealESRGANModel,
 )
+from iopaint.services.config import ExternalImageServiceConfig
 
 # OpenAI-compatible API imports
 from iopaint.openai_compat.config import OpenAIConfig
@@ -70,6 +73,10 @@ from iopaint.openai_compat.models import (
     GenerateImageRequest as OpenAIGenerateRequest,
     RefinePromptRequest as OpenAIRefineRequest,
     RefinePromptResponse,
+    EditImageRequest as OpenAIEditRequest,
+    CreateVariationRequest as OpenAIVariationRequest,
+    ImageSize as OpenAIImageSize,
+    ResponseFormat as OpenAIResponseFormat,
 )
 from iopaint.openai_compat.errors import OpenAIError
 
@@ -82,6 +89,7 @@ from iopaint.budget import (
     BudgetError,
     BudgetExceededError,
     RateLimitedError,
+    BudgetAwareOpenAIClient,
     CostEstimator,
     CostEstimateRequest,
     CostEstimateResponse,
@@ -91,6 +99,7 @@ from iopaint.budget import (
 from iopaint.storage import (
     HistoryStorage,
     ImageStorage,
+    ModelCacheStorage,
     GenerationJob,
     GenerationJobCreate,
     GenerationJobUpdate,
@@ -202,6 +211,7 @@ class Api:
         # Initialize OpenAI-compatible client if configured
         self.openai_config = OpenAIConfig()
         self.openai_client: Optional[OpenAICompatClient] = None
+        self.openai_budget_client: Optional[BudgetAwareOpenAIClient] = None
         if self.openai_config.is_enabled:
             self.openai_client = OpenAICompatClient(self.openai_config)
             logger.info(f"OpenAI-compatible client enabled: {self.openai_config.base_url}")
@@ -213,12 +223,24 @@ class Api:
         self.cost_estimator = CostEstimator()
         logger.info(f"Budget safety enabled: {self.budget_config}")
 
+        if self.openai_client:
+            self.openai_budget_client = BudgetAwareOpenAIClient(
+                client=self.openai_client,
+                config=self.budget_config,
+                storage=self.budget_storage,
+                cost_estimator=self.cost_estimator,
+            )
+
         # Initialize history and image storage (Epic 3)
         self.history_storage = HistoryStorage(db_path=self.budget_config.db_path)
         self.image_storage = ImageStorage(
             data_dir=self.budget_config.data_dir,
             db_path=self.budget_config.db_path,
         )
+        self.model_cache_storage = ModelCacheStorage(
+            db_path=self.budget_config.db_path,
+        )
+        self.external_services_config = ExternalImageServiceConfig()
         logger.info(f"Storage initialized: {self.budget_config.data_dir}")
 
         # fmt: off
@@ -238,9 +260,16 @@ class Api:
 
         # OpenAI-compatible API routes
         self.add_api_route("/api/v1/openai/models", self.api_openai_list_models, methods=["GET"])
+        self.add_api_route("/api/v1/openai/models/cached", self.api_openai_cached_models, methods=["GET"])
+        self.add_api_route("/api/v1/openai/models/refresh", self.api_openai_refresh_models, methods=["POST"])
         self.add_api_route("/api/v1/openai/refine", self.api_openai_refine_prompt, methods=["POST"],
                            response_model=RefinePromptResponse)
         self.add_api_route("/api/v1/openai/generate", self.api_openai_generate, methods=["POST"])
+        self.add_api_route("/api/v1/openai/edit", self.api_openai_edit, methods=["POST"])
+        self.add_api_route("/api/v1/openai/outpaint", self.api_openai_outpaint, methods=["POST"])
+        self.add_api_route("/api/v1/openai/variations", self.api_openai_variations, methods=["POST"])
+        self.add_api_route("/api/v1/openai/upscale", self.api_openai_upscale, methods=["POST"])
+        self.add_api_route("/api/v1/openai/background-remove", self.api_openai_background_remove, methods=["POST"])
 
         # Budget safety API routes
         self.add_api_route("/api/v1/budget/status", self.api_budget_status, methods=["GET"],
@@ -460,43 +489,424 @@ class Api:
     # OpenAI-compatible API endpoints
     # =========================================================================
 
-    def api_openai_list_models(self):
+    def api_openai_list_models(self, request: Request):
         """List available models from OpenAI-compatible API."""
-        if not self.openai_client:
-            raise HTTPException(
-                status_code=503,
-                detail="OpenAI client not configured. Set AIE_OPENAI_API_KEY environment variable.",
-            )
         try:
-            models = self.openai_client.list_models()
-            return {"models": [m.model_dump() for m in models]}
+            client, _, config = self._resolve_openai_clients(request)
+            provider = self._openai_cache_provider(config)
+            cached = self.model_cache_storage.get_cached_models(
+                provider,
+                max_age_seconds=self.openai_config.models_cache_ttl_s,
+            )
+            if cached:
+                return cached
+
+            models = client.list_models()
+            payload = {"models": [m.model_dump() for m in models]}
+            self.model_cache_storage.set_cached_models(provider, payload)
+            return payload
         except OpenAIError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    def api_openai_refine_prompt(self, req: OpenAIRefineRequest) -> RefinePromptResponse:
+    def api_openai_cached_models(self, request: Request):
+        """Return cached OpenAI-compatible models if available."""
+        _, _, config = self._resolve_openai_clients(request)
+        provider = self._openai_cache_provider(config)
+        cached = self.model_cache_storage.get_cached_models(
+            provider,
+            max_age_seconds=self.openai_config.models_cache_ttl_s,
+        )
+        if not cached:
+            raise HTTPException(status_code=404, detail="No cached models available")
+        return cached
+
+    def api_openai_refresh_models(self, request: Request):
+        """Refresh OpenAI-compatible models cache."""
+        try:
+            client, _, config = self._resolve_openai_clients(request)
+            models = client.list_models()
+            payload = {"models": [m.model_dump() for m in models]}
+            self.model_cache_storage.set_cached_models(
+                self._openai_cache_provider(config),
+                payload,
+            )
+            return payload
+        except OpenAIError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def api_openai_refine_prompt(
+        self, request: Request, req: OpenAIRefineRequest
+    ) -> RefinePromptResponse:
         """Refine/expand a prompt using cheap LLM call before expensive image generation."""
-        if not self.openai_client:
-            raise HTTPException(
-                status_code=503,
-                detail="OpenAI client not configured. Set AIE_OPENAI_API_KEY environment variable.",
-            )
         try:
-            return self.openai_client.refine_prompt(req)
+            client, budget_client, _ = self._resolve_openai_clients(request)
+            if budget_client:
+                session_id = self._get_session_id(request)
+                return budget_client.refine_prompt(req, session_id=session_id)
+            return client.refine_prompt(req)
+        except BudgetError as e:
+            self._raise_budget_error(e)
         except OpenAIError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    def api_openai_generate(self, req: OpenAIGenerateRequest):
+    def api_openai_generate(self, request: Request, req: OpenAIGenerateRequest):
         """Generate image from text prompt using OpenAI-compatible API."""
+        try:
+            client, budget_client, _ = self._resolve_openai_clients(request)
+            if budget_client:
+                session_id = self._get_session_id(request)
+                image_bytes = budget_client.generate_image(
+                    req,
+                    session_id=session_id,
+                )
+            else:
+                image_bytes = client.generate_image(req)
+            return Response(content=image_bytes, media_type="image/png")
+        except BudgetError as e:
+            self._raise_budget_error(e)
+        except OpenAIError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def api_openai_edit(
+        self,
+        request: Request,
+        image: UploadFile = File(...),
+        mask: UploadFile = File(...),
+        prompt: str = Form(...),
+        n: int = Form(1),
+        size: Optional[str] = Form(None),
+        model: Optional[str] = Form(None),
+        response_format: Optional[str] = Form(None),
+    ):
+        """Edit (inpaint/outpaint) an image using OpenAI-compatible API."""
+        image_bytes = self._read_upload_bytes(image, "image")
+        mask_bytes = self._read_upload_bytes(mask, "mask")
+        edit_request = OpenAIEditRequest(
+            image=image_bytes,
+            mask=mask_bytes,
+            prompt=prompt,
+            n=n,
+            size=self._parse_openai_size(size),
+            model=model,
+            response_format=self._parse_openai_response_format(response_format),
+        )
+        try:
+            client, budget_client, _ = self._resolve_openai_clients(request)
+            if budget_client:
+                session_id = self._get_session_id(request)
+                result = budget_client.edit_image(
+                    edit_request,
+                    session_id=session_id,
+                    image_bytes=image_bytes,
+                    mask_bytes=mask_bytes,
+                )
+            else:
+                result = client.edit_image(edit_request)
+            return Response(content=result, media_type="image/png")
+        except BudgetError as e:
+            self._raise_budget_error(e)
+        except OpenAIError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def api_openai_outpaint(
+        self,
+        request: Request,
+        image: UploadFile = File(...),
+        mask: UploadFile = File(...),
+        prompt: str = Form(...),
+        n: int = Form(1),
+        size: Optional[str] = Form(None),
+        model: Optional[str] = Form(None),
+        response_format: Optional[str] = Form(None),
+    ):
+        """Outpaint by delegating to the OpenAI image edit API."""
+        return self.api_openai_edit(
+            request=request,
+            image=image,
+            mask=mask,
+            prompt=prompt,
+            n=n,
+            size=size,
+            model=model,
+            response_format=response_format,
+        )
+
+    def api_openai_variations(
+        self,
+        request: Request,
+        image: UploadFile = File(...),
+        n: int = Form(1),
+        size: Optional[str] = Form(None),
+        model: Optional[str] = Form(None),
+        response_format: Optional[str] = Form(None),
+    ):
+        """Create image variations using OpenAI-compatible API."""
+        image_bytes = self._read_upload_bytes(image, "image")
+        variation_request = OpenAIVariationRequest(
+            image=image_bytes,
+            n=n,
+            size=self._parse_openai_size(size),
+            model=model,
+            response_format=self._parse_openai_response_format(response_format),
+        )
+        try:
+            client, budget_client, _ = self._resolve_openai_clients(request)
+            if budget_client:
+                session_id = self._get_session_id(request)
+                result = budget_client.create_variation(
+                    variation_request,
+                    session_id=session_id,
+                    image_bytes=image_bytes,
+                )
+            else:
+                result = client.create_variation(variation_request)
+            return Response(content=result, media_type="image/png")
+        except BudgetError as e:
+            self._raise_budget_error(e)
+        except OpenAIError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def api_openai_upscale(
+        self,
+        request: Request,
+        image: UploadFile = File(...),
+        scale: float = Form(2.0),
+        size: Optional[str] = Form(None),
+        model: Optional[str] = Form(None),
+        prompt: Optional[str] = Form(None),
+        response_format: Optional[str] = Form(None),
+        mode: str = Form("local"),
+    ):
+        """Upscale an image (local plugin, prompt-based, or external service stub)."""
+        if mode not in {"local", "prompt", "service"}:
+            raise HTTPException(status_code=422, detail=f"Invalid mode: {mode}")
+        if mode == "service":
+            if not self.external_services_config.upscale_enabled:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Upscale service not configured. Set AIE_UPSCALE_SERVICE_URL and AIE_UPSCALE_SERVICE_API_KEY.",
+                )
+            raise HTTPException(status_code=501, detail="Upscale service not implemented yet.")
+
+        image_bytes = self._read_upload_bytes(image, "image")
+
+        if mode == "prompt":
+            edit_prompt = prompt or (
+                "Enhance this image to higher resolution with more detail while preserving original composition."
+            )
+            size_enum = self._parse_openai_size(size) or self._infer_upscale_size(
+                image_bytes, scale
+            )
+            return self._run_openai_edit_from_bytes(
+                request=request,
+                image_bytes=image_bytes,
+                mask_bytes=self._build_full_edit_mask(image_bytes),
+                prompt=edit_prompt,
+                n=1,
+                size=size_enum,
+                model=model,
+                response_format=self._parse_openai_response_format(response_format),
+            )
+
+        if RealESRGANUpscaler.name not in self.plugins:
+            raise HTTPException(status_code=422, detail="RealESRGAN plugin not enabled")
+        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        req = RunPluginRequest(
+            name=RealESRGANUpscaler.name,
+            image=image_b64,
+            scale=scale,
+        )
+        return self.api_run_plugin_gen_image(req)
+
+    def api_openai_background_remove(
+        self,
+        request: Request,
+        image: UploadFile = File(...),
+        prompt: Optional[str] = Form(None),
+        response_format: Optional[str] = Form(None),
+        model: Optional[str] = Form(None),
+        mode: str = Form("local"),
+    ):
+        """Remove background (local plugin, prompt-based, or external service stub)."""
+        if mode not in {"local", "prompt", "service"}:
+            raise HTTPException(status_code=422, detail=f"Invalid mode: {mode}")
+        if mode == "service":
+            if not self.external_services_config.background_remove_enabled:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Background removal service not configured. Set AIE_BG_REMOVE_SERVICE_URL and AIE_BG_REMOVE_SERVICE_API_KEY.",
+                )
+            raise HTTPException(
+                status_code=501,
+                detail="Background removal service not implemented yet.",
+            )
+
+        image_bytes = self._read_upload_bytes(image, "image")
+        if mode == "prompt":
+            edit_prompt = prompt or (
+                "Remove the background around the main object and output a transparent PNG."
+            )
+            return self._run_openai_edit_from_bytes(
+                request=request,
+                image_bytes=image_bytes,
+                mask_bytes=self._build_full_edit_mask(image_bytes),
+                prompt=edit_prompt,
+                n=1,
+                size=None,
+                model=model,
+                response_format=self._parse_openai_response_format(response_format),
+            )
+
+        if RemoveBG.name not in self.plugins:
+            raise HTTPException(status_code=422, detail="RemoveBG plugin not enabled")
+        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        req = RunPluginRequest(name=RemoveBG.name, image=image_b64)
+        return self.api_run_plugin_gen_image(req)
+
+    def _openai_cache_provider(self, config: OpenAIConfig) -> str:
+        """Build a provider key for model cache."""
+        return f"{config.backend}:{config.base_url.rstrip('/')}"
+
+    def _resolve_openai_clients(
+        self, request: Request
+    ) -> Tuple[OpenAICompatClient, Optional[BudgetAwareOpenAIClient], OpenAIConfig]:
         if not self.openai_client:
             raise HTTPException(
                 status_code=503,
                 detail="OpenAI client not configured. Set AIE_OPENAI_API_KEY environment variable.",
             )
+        override_base_url = self._get_openai_base_url_override(request)
+        if not override_base_url:
+            return self.openai_client, self.openai_budget_client, self.openai_config
+
+        normalized_base_url = override_base_url.rstrip("/")
+        if normalized_base_url == self.openai_config.base_url.rstrip("/"):
+            return self.openai_client, self.openai_budget_client, self.openai_config
+
+        override_config = OpenAIConfig(
+            backend=self.openai_config.backend,
+            api_key=self.openai_config.api_key,
+            base_url=normalized_base_url,
+            model=self.openai_config.model,
+            timeout_s=self.openai_config.timeout_s,
+            refine_model=self.openai_config.refine_model,
+            models_cache_ttl_s=self.openai_config.models_cache_ttl_s,
+        )
+        client = OpenAICompatClient(override_config)
+        budget_client = BudgetAwareOpenAIClient(
+            client=client,
+            config=self.budget_config,
+            storage=self.budget_storage,
+            cost_estimator=self.cost_estimator,
+        )
+        return client, budget_client, override_config
+
+    def _get_openai_base_url_override(self, request: Request) -> Optional[str]:
+        base_url = request.headers.get("X-OpenAI-Base-URL")
+        if not base_url:
+            return None
+        normalized = base_url.rstrip("/")
+        allowed = {
+            "https://api.proxyapi.ru/openai/v1",
+            "https://openrouter.ai/api/v1",
+            "https://api.openai.com/v1",
+        }
+        if normalized not in allowed:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unsupported OpenAI base URL: {base_url}",
+            )
+        return normalized
+
+    def _parse_openai_size(
+        self, size: Optional[str]
+    ) -> Optional[OpenAIImageSize]:
+        if not size:
+            return None
         try:
-            image_bytes = self.openai_client.generate_image(req)
-            return Response(content=image_bytes, media_type="image/png")
+            return OpenAIImageSize(size)
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"Invalid size: {size}")
+
+    def _parse_openai_response_format(
+        self, response_format: Optional[str]
+    ) -> OpenAIResponseFormat:
+        if not response_format:
+            return OpenAIResponseFormat.B64_JSON
+        try:
+            return OpenAIResponseFormat(response_format)
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid response_format: {response_format}",
+            )
+
+    def _read_upload_bytes(self, upload: UploadFile, label: str) -> bytes:
+        data = upload.file.read()
+        if not data:
+            raise HTTPException(status_code=400, detail=f"Empty {label} upload")
+        return data
+
+    def _build_full_edit_mask(self, image_bytes: bytes) -> bytes:
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+        mask = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        return pil_to_bytes(mask, ext="png", quality=self.config.quality, infos={})
+
+    def _infer_upscale_size(
+        self, image_bytes: bytes, scale: float
+    ) -> Optional[OpenAIImageSize]:
+        try:
+            image = Image.open(io.BytesIO(image_bytes))
+            target_width = int(image.width * scale)
+            target_height = int(image.height * scale)
+        except Exception:
+            return None
+        return OpenAIImageSize.from_dimensions(target_width, target_height)
+
+    def _run_openai_edit_from_bytes(
+        self,
+        request: Request,
+        image_bytes: bytes,
+        mask_bytes: bytes,
+        prompt: str,
+        n: int,
+        size: Optional[OpenAIImageSize],
+        model: Optional[str],
+        response_format: OpenAIResponseFormat,
+    ) -> Response:
+        edit_request = OpenAIEditRequest(
+            image=image_bytes,
+            mask=mask_bytes,
+            prompt=prompt,
+            n=n,
+            size=size,
+            model=model,
+            response_format=response_format,
+        )
+        try:
+            client, budget_client, _ = self._resolve_openai_clients(request)
+            if budget_client:
+                session_id = self._get_session_id(request)
+                result = budget_client.edit_image(
+                    edit_request,
+                    session_id=session_id,
+                    image_bytes=image_bytes,
+                    mask_bytes=mask_bytes,
+                )
+            else:
+                result = client.edit_image(edit_request)
+            return Response(content=result, media_type="image/png")
+        except BudgetError as e:
+            self._raise_budget_error(e)
         except OpenAIError as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+    def _raise_budget_error(self, error: BudgetError) -> None:
+        if isinstance(error, BudgetExceededError):
+            raise HTTPException(status_code=402, detail=str(error))
+        if isinstance(error, RateLimitedError):
+            raise HTTPException(status_code=429, detail=str(error))
+        raise HTTPException(status_code=409, detail=str(error))
 
     # =========================================================================
     # Budget Safety API endpoints

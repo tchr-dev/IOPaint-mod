@@ -100,6 +100,18 @@ CREATE INDEX idx_snapshots_session ON history_snapshots(session_id);
 CREATE INDEX idx_snapshots_created ON history_snapshots(created_at DESC);
 ```
 
+### `models_cache` Table
+
+```sql
+CREATE TABLE models_cache (
+    provider TEXT PRIMARY KEY,         -- Backend/base_url key
+    payload TEXT NOT NULL,             -- JSON model list
+    fetched_at TIMESTAMP              -- Cache fetch time
+);
+
+CREATE INDEX idx_models_cache_fetched ON models_cache(fetched_at DESC);
+```
+
 ---
 
 ## File Layout
@@ -139,6 +151,13 @@ CREATE INDEX idx_snapshots_created ON history_snapshots(created_at DESC);
 | `GET` | `/api/v1/history/snapshots/{snapshot_id}` | Get specific snapshot |
 | `DELETE` | `/api/v1/history/snapshots/{snapshot_id}` | Delete snapshot |
 | `DELETE` | `/api/v1/history/snapshots/clear` | Clear all snapshots for session |
+
+### Model Cache Endpoints (OpenAI)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/openai/models/cached` | Return cached model list |
+| `POST` | `/api/v1/openai/models/refresh` | Refresh cache from provider |
 
 ### Image Endpoints
 
@@ -343,6 +362,9 @@ No new environment variables required. Uses existing `AIE_DATA_DIR` from budget 
 ```bash
 # Default data directory
 AIE_DATA_DIR=~/.iopaint/data
+
+# Model list cache TTL (seconds)
+AIE_OPENAI_MODELS_CACHE_TTL_S=3600
 ```
 
 ---

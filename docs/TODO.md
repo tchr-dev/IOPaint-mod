@@ -15,6 +15,15 @@
 
 ---
 
+## Test Notes
+
+Recent focused test runs include deprecation warnings:
+- Pydantic `@model_validator` usage and class-based config.
+- NumPy 2.0 removal of `np.int0` and upcoming `__array_wrap__` changes.
+- `datetime.utcnow()` deprecation warnings in storage modules.
+
+---
+
 ## Epic 1 — OpenAI-Compatible API Layer
 
 **Goal**: Unified client for OpenAI-compatible providers (OpenAI, ProxyAPI, OpenRouter, etc.)
@@ -27,6 +36,7 @@
 - [x] `refine_prompt()` — cheap LLM call before expensive generation
 - [x] `generate_image()` — text-to-image generation
 - [x] `edit_image()` — image+mask inpainting
+- [x] OpenAI provider selection (server/proxyapi/openrouter) and tool mode selection (local/prompt/service)
 - [x] Unified error structure (`status`, `retryable`, `detail`)
 - [x] Environment config: `AIE_OPENAI_API_KEY`, `AIE_OPENAI_BASE_URL`, `AIE_OPENAI_MODEL`
 
@@ -139,7 +149,7 @@ iopaint/budget/
 - [x] `images` table (id, job_id, path, metadata)
 - [x] `history_snapshots` table
 - [x] `budget_ledger` table (existing from Epic 2)
-- [ ] `models_cache` table (deferred - not critical for MVP)
+- [x] `models_cache` table
 - [x] Migration system (custom schema versioning in budget/storage.py)
 
 #### Suggested Schema
