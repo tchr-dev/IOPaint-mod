@@ -10,7 +10,7 @@
 | Epic 2 | Budget Safety | ✅ Done | `18f24e3` |
 | Epic 3 | Storage (SQLite) | ✅ Done | `pending` |
 | Epic 4 | UI/UX Components | ✅ Done | `5c26fe6` |
-| Epic 5 | Runner/Jobs Queue | ✅ Done | pending |
+| Epic 5 | Runner/Jobs Queue | ✅ Done | `4c18265` |
 | Epic 6 | Testing | ⏳ Pending | — |
 
 ---
