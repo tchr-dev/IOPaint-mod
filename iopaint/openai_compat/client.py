@@ -218,10 +218,14 @@ class OpenAICompatClient:
             "prompt": request.prompt,
             "n": request.n,
             "size": request.size.value,
-            "response_format": request.response_format.value,
         }
 
-        if request.quality:
+        # Some proxy APIs don't support response_format parameter
+        if not self.config.skip_response_format:
+            payload["response_format"] = request.response_format.value
+
+        # Some proxy APIs don't support quality parameter or use different values
+        if request.quality and not self.config.skip_quality:
             payload["quality"] = request.quality.value
 
         if request.style:
@@ -268,10 +272,14 @@ class OpenAICompatClient:
             "prompt": request.prompt,
             "n": request.n,
             "size": request.size.value,
-            "response_format": request.response_format.value,
         }
 
-        if request.quality:
+        # Some proxy APIs don't support response_format parameter
+        if not self.config.skip_response_format:
+            payload["response_format"] = request.response_format.value
+
+        # Some proxy APIs don't support quality parameter or use different values
+        if request.quality and not self.config.skip_quality:
             payload["quality"] = request.quality.value
 
         if request.style:
@@ -314,8 +322,11 @@ class OpenAICompatClient:
         data = {
             "prompt": request.prompt,
             "n": str(request.n),
-            "response_format": request.response_format.value,
         }
+
+        # Some proxy APIs don't support response_format parameter
+        if not self.config.skip_response_format:
+            data["response_format"] = request.response_format.value
 
         if model:
             data["model"] = model
@@ -381,8 +392,11 @@ class OpenAICompatClient:
         data = {
             "prompt": request.prompt,
             "n": str(request.n),
-            "response_format": request.response_format.value,
         }
+
+        # Some proxy APIs don't support response_format parameter
+        if not self.config.skip_response_format:
+            data["response_format"] = request.response_format.value
 
         if model:
             data["model"] = model
@@ -439,8 +453,11 @@ class OpenAICompatClient:
 
         data = {
             "n": str(request.n),
-            "response_format": request.response_format.value,
         }
+
+        # Some proxy APIs don't support response_format parameter
+        if not self.config.skip_response_format:
+            data["response_format"] = request.response_format.value
 
         if model:
             data["model"] = model

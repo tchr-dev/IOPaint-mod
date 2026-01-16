@@ -25,21 +25,26 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useStore } from "@/lib/states"
-import { GenerationPreset, OpenAIImageSize, OpenAIImageQuality } from "@/lib/types"
+import {
+  GenerationPreset,
+  OpenAIImageSize,
+  OpenAIImageQuality,
+  OpenAIImageMode,
+} from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 const PRESET_INFO = {
   [GenerationPreset.DRAFT]: {
     icon: Zap,
     label: "Draft",
-    description: "512x512, standard",
-    hint: "Fast & cheap preview",
+    description: "Fast preview",
+    hint: "Lowest cost option",
   },
   [GenerationPreset.FINAL]: {
     icon: Crown,
     label: "Final",
-    description: "1024x1024, HD",
-    hint: "High quality output",
+    description: "High quality",
+    hint: "Best quality output",
   },
   [GenerationPreset.CUSTOM]: {
     icon: Settings2,
@@ -49,18 +54,6 @@ const PRESET_INFO = {
   },
 }
 
-const SIZE_OPTIONS: { value: OpenAIImageSize; label: string }[] = [
-  { value: "256x256", label: "256x256" },
-  { value: "512x512", label: "512x512" },
-  { value: "1024x1024", label: "1024x1024" },
-  { value: "1792x1024", label: "1792x1024 (Wide)" },
-  { value: "1024x1792", label: "1024x1792 (Tall)" },
-]
-
-const QUALITY_OPTIONS: { value: OpenAIImageQuality; label: string }[] = [
-  { value: "standard", label: "Standard" },
-  { value: "hd", label: "HD" },
-]
 
 export function GenerationPresets() {
   const [
@@ -69,15 +62,40 @@ export function GenerationPresets() {
     customConfig,
     updateCustomPresetConfig,
     isGenerating,
+    capabilities,
+    selectedGenerateModel,
+    selectedEditModel,
+    isEditMode,
   ] = useStore((state) => [
     state.openAIState.selectedPreset,
     state.setSelectedPreset,
     state.openAIState.customPresetConfig,
     state.updateCustomPresetConfig,
     state.openAIState.isOpenAIGenerating,
+    state.openAIState.capabilities,
+    state.openAIState.selectedGenerateModel,
+    state.openAIState.selectedEditModel,
+    state.openAIState.isOpenAIEditMode,
   ])
 
   const isCustom = selectedPreset === GenerationPreset.CUSTOM
+  const mode: OpenAIImageMode = isEditMode ? "images_edit" : "images_generate"
+  const activeModelId = isEditMode ? selectedEditModel : selectedGenerateModel
+  const modelCaps = capabilities?.modes[mode]?.models.find(
+    (model) => model.apiId === activeModelId || model.id === activeModelId
+  )
+  const sizeOptions = modelCaps?.sizes ?? []
+  const qualityOptions = modelCaps?.qualities ?? []
+  const formatSizeLabel = (size: OpenAIImageSize) => {
+    const [width, height] = size.split("x")
+    if (width === height) {
+      return `${size} (Square)`
+    }
+    if (parseInt(width, 10) > parseInt(height, 10)) {
+      return `${size} (Landscape)`
+    }
+    return `${size} (Portrait)`
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -119,15 +137,15 @@ export function GenerationPresets() {
               onValueChange={(value) =>
                 updateCustomPresetConfig({ size: value as OpenAIImageSize })
               }
-              disabled={isGenerating}
+              disabled={isGenerating || sizeOptions.length <= 1}
             >
               <SelectTrigger className="h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {SIZE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                {sizeOptions.map((size) => (
+                  <SelectItem key={size} value={size}>
+                    {formatSizeLabel(size)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -141,15 +159,15 @@ export function GenerationPresets() {
               onValueChange={(value) =>
                 updateCustomPresetConfig({ quality: value as OpenAIImageQuality })
               }
-              disabled={isGenerating}
+              disabled={isGenerating || qualityOptions.length <= 1}
             >
               <SelectTrigger className="h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {QUALITY_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                {qualityOptions.map((quality) => (
+                  <SelectItem key={quality} value={quality}>
+                    {quality === "hd" ? "HD" : "Standard"}
                   </SelectItem>
                 ))}
               </SelectContent>

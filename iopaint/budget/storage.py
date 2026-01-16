@@ -23,7 +23,7 @@ class BudgetStorage:
         4: Added models_cache table
     """
 
-    SCHEMA_VERSION = 4
+    SCHEMA_VERSION = 5
 
     def __init__(self, config: BudgetConfig):
         self.config = config
@@ -162,6 +162,16 @@ class BudgetStorage:
             "CREATE INDEX idx_models_cache_fetched ON models_cache(fetched_at DESC)"
         )
 
+        cursor.execute("""
+            CREATE TABLE budget_limits (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                daily_cap_usd REAL,
+                monthly_cap_usd REAL,
+                session_cap_usd REAL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
     def _migrate_schema(self, cursor: sqlite3.Cursor, from_version: int) -> None:
         """Migrate schema from older version."""
         if from_version < 2:
@@ -251,6 +261,18 @@ class BudgetStorage:
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_models_cache_fetched ON models_cache(fetched_at DESC)"
             )
+
+        if from_version < 5:
+            # Version 5: Add budget limits overrides
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS budget_limits (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    daily_cap_usd REAL,
+                    monthly_cap_usd REAL,
+                    session_cap_usd REAL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
         cursor.execute(
             "UPDATE schema_version SET version = ?",
@@ -466,6 +488,49 @@ class BudgetStorage:
                 (now.isoformat(),),
             )
             return cursor.rowcount
+
+    # --- Budget Limits Overrides ---
+
+    def get_budget_limits(self) -> Optional[dict]:
+        """Return persisted budget limits overrides, if set."""
+        with self._transaction() as cursor:
+            cursor.execute(
+                "SELECT daily_cap_usd, monthly_cap_usd, session_cap_usd FROM budget_limits WHERE id = 1"
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                "daily_cap_usd": row["daily_cap_usd"],
+                "monthly_cap_usd": row["monthly_cap_usd"],
+                "session_cap_usd": row["session_cap_usd"],
+            }
+
+    def set_budget_limits(
+        self,
+        daily_cap_usd: Optional[float],
+        monthly_cap_usd: Optional[float],
+        session_cap_usd: Optional[float],
+    ) -> None:
+        """Persist budget limits overrides (single row)."""
+        with self._transaction() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO budget_limits (id, daily_cap_usd, monthly_cap_usd, session_cap_usd, updated_at)
+                VALUES (1, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    daily_cap_usd = excluded.daily_cap_usd,
+                    monthly_cap_usd = excluded.monthly_cap_usd,
+                    session_cap_usd = excluded.session_cap_usd,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    daily_cap_usd,
+                    monthly_cap_usd,
+                    session_cap_usd,
+                    datetime.utcnow().isoformat(),
+                ),
+            )
 
     def close(self) -> None:
         """Close database connection for current thread."""

@@ -18,10 +18,17 @@ from iopaint.const import (
 )
 from iopaint.model.original_sd_configs import get_config_files
 
+# OpenAI-compatible API constants
+OPENAI_COMPAT_NAME = "openai-compat"
+
 
 def cli_download_model(model: str):
     from iopaint.model import models
     from iopaint.model.utils import handle_from_pretrained_exceptions
+
+    if model == OPENAI_COMPAT_NAME:
+        logger.info("OpenAI-compatible model is API-only; no download needed.")
+        return
 
     if model in models and models[model].is_erase_model:
         logger.info(f"Downloading {model}...")
@@ -311,4 +318,12 @@ def scan_models() -> List[ModelInfo]:
     available_models.extend(scan_single_file_diffusion_models(model_dir))
     available_models.extend(scan_diffusers_models())
     available_models.extend(scan_converted_diffusers_models(model_dir))
+
+    openai_model = ModelInfo(
+        name=OPENAI_COMPAT_NAME,
+        path="openai-api",
+        model_type=ModelType.OPENAI_COMPAT,
+    )
+    available_models.append(openai_model)
+
     return available_models

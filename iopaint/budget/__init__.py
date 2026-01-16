@@ -20,6 +20,8 @@ from .errors import (
 from .models import (
     BudgetUsage,
     BudgetStatusResponse,
+    BudgetLimits,
+    BudgetLimitsUpdate,
     CostEstimateRequest,
     CostEstimateResponse,
     LedgerEntry,
@@ -56,6 +58,8 @@ __all__ = [
     # Models
     "BudgetUsage",
     "BudgetStatusResponse",
+    "BudgetLimits",
+    "BudgetLimitsUpdate",
     "CostEstimateRequest",
     "CostEstimateResponse",
     "LedgerEntry",

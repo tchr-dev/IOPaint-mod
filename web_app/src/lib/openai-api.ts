@@ -13,12 +13,14 @@
 import { API_ENDPOINT, getOrCreateSessionId } from "./api"
 import type {
   OpenAIModelInfo,
+  OpenAICapabilities,
   RefinePromptRequest,
   RefinePromptResponse,
   GenerateImageRequest,
   CostEstimateRequest,
   CostEstimate,
   BudgetStatus,
+  BudgetLimits,
   OpenAIImageSize,
   OpenAIImageQuality,
   OpenAIProvider,
@@ -174,6 +176,59 @@ export async function refreshOpenAIModels(
 
   const data = await res.json()
   return data.models || data
+}
+
+/**
+ * Fetch normalized OpenAI image capabilities.
+ */
+export async function fetchOpenAICapabilities(
+  baseUrl?: string
+): Promise<OpenAICapabilities> {
+  const res = await fetch(`${API_ENDPOINT}/openai/capabilities`, {
+    method: "GET",
+    headers: {
+      ...withOpenAIHeaders(
+        {
+          "X-Session-Id": getOrCreateSessionId(),
+        },
+        baseUrl
+      ),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  const data = await res.json()
+  const normalizeModels = (models: any[] = []) =>
+    models.map((model) => ({
+      id: model.id,
+      apiId: model.api_id ?? model.apiId ?? model.id,
+      label: model.label ?? model.id,
+      sizes: model.sizes ?? [],
+      qualities: model.qualities ?? [],
+      defaultSize: model.default_size ?? model.defaultSize,
+      defaultQuality: model.default_quality ?? model.defaultQuality,
+    }))
+
+  return {
+    created: data.created,
+    modes: {
+      images_generate: {
+        models: normalizeModels(data.modes?.images_generate?.models ?? []),
+        defaultModel:
+          data.modes?.images_generate?.default_model ??
+          data.modes?.images_generate?.defaultModel,
+      },
+      images_edit: {
+        models: normalizeModels(data.modes?.images_edit?.models ?? []),
+        defaultModel:
+          data.modes?.images_edit?.default_model ??
+          data.modes?.images_edit?.defaultModel,
+      },
+    },
+  }
 }
 
 // ============================================================================
@@ -707,6 +762,54 @@ export async function getOpenAIBudgetStatus(): Promise<BudgetStatus> {
     },
     status: data.status,
     message: data.message,
+  }
+}
+
+export async function getOpenAIBudgetLimits(): Promise<BudgetLimits> {
+  const res = await fetch(`${API_ENDPOINT}/budget/limits`, {
+    method: "GET",
+    headers: {
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  const data = await res.json()
+  return {
+    dailyCapUsd: data.daily_cap_usd,
+    monthlyCapUsd: data.monthly_cap_usd,
+    sessionCapUsd: data.session_cap_usd,
+  }
+}
+
+export async function updateOpenAIBudgetLimits(
+  limits: BudgetLimits
+): Promise<BudgetLimits> {
+  const res = await fetch(`${API_ENDPOINT}/budget/limits`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Session-Id": getOrCreateSessionId(),
+    },
+    body: JSON.stringify({
+      daily_cap_usd: limits.dailyCapUsd,
+      monthly_cap_usd: limits.monthlyCapUsd,
+      session_cap_usd: limits.sessionCapUsd,
+    }),
+  })
+
+  if (!res.ok) {
+    await handleErrorResponse(res)
+  }
+
+  const data = await res.json()
+  return {
+    dailyCapUsd: data.daily_cap_usd,
+    monthlyCapUsd: data.monthly_cap_usd,
+    sessionCapUsd: data.session_cap_usd,
   }
 }
 

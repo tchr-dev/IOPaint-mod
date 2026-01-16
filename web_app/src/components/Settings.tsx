@@ -15,13 +15,20 @@ import {
   FormItem,
   FormLabel,
 } from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
 import { Switch } from "./ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useQuery } from "@tanstack/react-query"
 import { getServerConfig, switchModel, switchPluginModel } from "@/lib/api"
-import { ModelInfo, PluginName } from "@/lib/types"
+import {
+  GenerationPreset,
+  ModelInfo,
+  OpenAIImageQuality,
+  OpenAIImageSize,
+  PluginName,
+} from "@/lib/types"
 import { useStore } from "@/lib/states"
 import { ScrollArea } from "./ui/scroll-area"
 import { useToast } from "./ui/use-toast"
@@ -58,6 +65,9 @@ const formSchema = z.object({
   enableAutoExtractPrompt: z.boolean(),
   openAIProvider: z.enum(["server", "proxyapi", "openrouter"]),
   openAIToolMode: z.enum(["local", "prompt", "service"]),
+  openAIDailyCapUsd: z.coerce.number().min(0),
+  openAIMonthlyCapUsd: z.coerce.number().min(0),
+  openAISessionCapUsd: z.coerce.number().min(0),
   removeBGModel: z.string(),
   realesrganModel: z.string(),
   interactiveSegModel: z.string(),
@@ -80,8 +90,19 @@ export function SettingsDialog() {
     fileManagerState,
     setAppModel,
     setServerConfig,
-    fetchOpenAIModels,
+    fetchOpenAICapabilities,
     isOpenAIMode,
+    capabilities,
+    selectedGenerateModel,
+    selectedEditModel,
+    setSelectedGenerateModel,
+    setSelectedEditModel,
+    customPresetConfig,
+    updateCustomPresetConfig,
+    setSelectedPreset,
+    budgetLimits,
+    refreshBudgetLimits,
+    updateBudgetLimits,
   ] = useStore((state) => [
     state.updateAppState,
     state.settings,
@@ -89,8 +110,19 @@ export function SettingsDialog() {
     state.fileManagerState,
     state.setModel,
     state.setServerConfig,
-    state.fetchOpenAIModels,
+    state.fetchOpenAICapabilities,
     state.openAIState.isOpenAIMode,
+    state.openAIState.capabilities,
+    state.openAIState.selectedGenerateModel,
+    state.openAIState.selectedEditModel,
+    state.setSelectedGenerateModel,
+    state.setSelectedEditModel,
+    state.openAIState.customPresetConfig,
+    state.updateCustomPresetConfig,
+    state.setSelectedPreset,
+    state.openAIState.budgetLimits,
+    state.refreshBudgetLimits,
+    state.updateBudgetLimits,
   ])
   const { toast } = useToast()
   const [model, setModel] = useState<ModelInfo>(settings.model)
@@ -119,6 +151,9 @@ export function SettingsDialog() {
       enableAutoExtractPrompt: settings.enableAutoExtractPrompt,
       openAIProvider: settings.openAIProvider,
       openAIToolMode: settings.openAIToolMode,
+      openAIDailyCapUsd: budgetLimits?.dailyCapUsd ?? 0,
+      openAIMonthlyCapUsd: budgetLimits?.monthlyCapUsd ?? 0,
+      openAISessionCapUsd: budgetLimits?.sessionCapUsd ?? 0,
       inputDirectory: fileManagerState.inputDirectory,
       outputDirectory: fileManagerState.outputDirectory,
       removeBGModel: serverConfig?.removeBGModel,
@@ -134,7 +169,22 @@ export function SettingsDialog() {
       form.setValue("realesrganModel", serverConfig.realesrganModel)
       form.setValue("interactiveSegModel", serverConfig.interactiveSegModel)
     }
-  }, [form, serverConfig])
+  }, [form, serverConfig, setServerConfig])
+
+  useEffect(() => {
+    if (budgetLimits) {
+      form.setValue("openAIDailyCapUsd", budgetLimits.dailyCapUsd)
+      form.setValue("openAIMonthlyCapUsd", budgetLimits.monthlyCapUsd)
+      form.setValue("openAISessionCapUsd", budgetLimits.sessionCapUsd)
+    }
+  }, [budgetLimits, form])
+
+  useEffect(() => {
+    if (open && isOpenAIMode) {
+      fetchOpenAICapabilities()
+      refreshBudgetLimits()
+    }
+  }, [open, isOpenAIMode, fetchOpenAICapabilities, refreshBudgetLimits])
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     // Do something with the form values. ✅ This will be type-safe and validated.
@@ -150,7 +200,21 @@ export function SettingsDialog() {
       settings.openAIProvider !== values.openAIProvider &&
       isOpenAIMode
     ) {
-      fetchOpenAIModels()
+      fetchOpenAICapabilities()
+    }
+
+    const shouldUpdateBudgetLimits =
+      !budgetLimits ||
+      budgetLimits.dailyCapUsd !== values.openAIDailyCapUsd ||
+      budgetLimits.monthlyCapUsd !== values.openAIMonthlyCapUsd ||
+      budgetLimits.sessionCapUsd !== values.openAISessionCapUsd
+
+    if (shouldUpdateBudgetLimits) {
+      await updateBudgetLimits({
+        dailyCapUsd: values.openAIDailyCapUsd,
+        monthlyCapUsd: values.openAIMonthlyCapUsd,
+        sessionCapUsd: values.openAISessionCapUsd,
+      })
     }
 
     // TODO: validate input/output Directory
@@ -341,7 +405,176 @@ export function SettingsDialog() {
       })
   }
 
+  function renderOpenAISettings() {
+    if (!capabilities) {
+      return <div className="w-[510px]">Loading OpenAI capabilities...</div>
+    }
+
+    const generateCaps = capabilities.modes.images_generate
+    const editCaps = capabilities.modes.images_edit
+    const generateModels = generateCaps?.models ?? []
+    const editModels = editCaps?.models ?? []
+
+    const resolveModel = (models: typeof generateModels, id: string) =>
+      models.find((model) => model.apiId === id || model.id === id)
+
+    const renderModeSettings = (
+      label: string,
+      models: typeof generateModels,
+      selectedModel: string,
+      onModelChange: (value: string) => void
+    ) => {
+      if (models.length === 0) {
+        return (
+          <div className="text-sm text-muted-foreground">
+            No models available for {label.toLowerCase()}.
+          </div>
+        )
+      }
+      const model = resolveModel(models, selectedModel) ?? models[0]
+      const sizes = model?.sizes ?? []
+      const qualities = model?.qualities ?? []
+      const selectedSize = sizes.includes(customPresetConfig.size)
+        ? customPresetConfig.size
+        : sizes[0] ?? customPresetConfig.size
+      const selectedQuality = qualities.includes(customPresetConfig.quality)
+        ? customPresetConfig.quality
+        : qualities[0] ?? customPresetConfig.quality
+
+      return (
+        <div className="space-y-4">
+          <div className="text-sm font-medium text-foreground">{label}</div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel>Model</FormLabel>
+              <FormDescription>Choose the OpenAI model.</FormDescription>
+            </div>
+            <Select
+              onValueChange={onModelChange}
+              value={selectedModel}
+              disabled={models.length <= 1}
+            >
+              <FormControl>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent align="end">
+                <SelectGroup>
+                  {models.map((modelOption) => (
+                    <SelectItem key={modelOption.apiId} value={modelOption.apiId}>
+                      {modelOption.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel>Size</FormLabel>
+              <FormDescription>Output image size.</FormDescription>
+            </div>
+            <Select
+              onValueChange={(value) => {
+                updateCustomPresetConfig({ size: value as OpenAIImageSize })
+                setSelectedPreset(GenerationPreset.CUSTOM)
+              }}
+              value={selectedSize}
+              disabled={sizes.length <= 1}
+            >
+              <FormControl>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Select size" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent align="end">
+                <SelectGroup>
+                  {sizes.map((size) => (
+                    <SelectItem key={size} value={size}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel>Quality</FormLabel>
+              <FormDescription>Output quality preset.</FormDescription>
+            </div>
+            <Select
+              onValueChange={(value) => {
+                updateCustomPresetConfig({ quality: value as OpenAIImageQuality })
+                setSelectedPreset(GenerationPreset.CUSTOM)
+              }}
+              value={selectedQuality}
+              disabled={qualities.length <= 1}
+            >
+              <FormControl>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Select quality" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent align="end">
+                <SelectGroup>
+                  {qualities.map((quality) => (
+                    <SelectItem key={quality} value={quality}>
+                      {quality === "hd" ? "HD" : "Standard"}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex flex-col gap-4 w-[510px]">
+        <Tabs defaultValue="images_generate">
+          <TabsList>
+            <TabsTrigger value="images_generate">Image Generation</TabsTrigger>
+            <TabsTrigger value="images_edit" disabled={editModels.length === 0}>
+              Image Edit (Inpaint)
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="images_generate">
+            {renderModeSettings(
+              "Generation",
+              generateModels,
+              selectedGenerateModel,
+              setSelectedGenerateModel
+            )}
+          </TabsContent>
+          <TabsContent value="images_edit">
+            {editModels.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                No edit-capable models available.
+              </div>
+            ) : (
+              renderModeSettings(
+                "Edit",
+                editModels,
+                selectedEditModel,
+                setSelectedEditModel
+              )
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
+    )
+  }
+
   function renderModelSettings() {
+    if (isOpenAIMode) {
+      return renderOpenAISettings()
+    }
     let defaultTab = MODEL_TYPE_INPAINT
     for (const info of modelInfos) {
       if (model.name === info.name) {
@@ -558,6 +791,75 @@ export function SettingsDialog() {
             </FormItem>
           )}
         />
+
+        <Separator />
+
+        <div className="space-y-3">
+          <div className="text-sm font-medium">OpenAI Budget Limits (USD)</div>
+          <FormField
+            control={form.control}
+            name="openAIDailyCapUsd"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <FormLabel>Daily cap</FormLabel>
+                  <FormDescription>0 = unlimited</FormDescription>
+                </div>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    className="w-[220px]"
+                    {...field}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="openAIMonthlyCapUsd"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <FormLabel>Monthly cap</FormLabel>
+                  <FormDescription>0 = unlimited</FormDescription>
+                </div>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    className="w-[220px]"
+                    {...field}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="openAISessionCapUsd"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <FormLabel>Session cap</FormLabel>
+                  <FormDescription>0 = unlimited</FormDescription>
+                </div>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    className="w-[220px]"
+                    {...field}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </div>
 
         {/* <FormField
           control={form.control}

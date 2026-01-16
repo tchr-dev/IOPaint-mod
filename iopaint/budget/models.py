@@ -88,6 +88,22 @@ class BudgetStatusResponse(BaseModel):
         )
 
 
+class BudgetLimits(BaseModel):
+    """Persisted budget limits overrides."""
+
+    daily_cap_usd: float
+    monthly_cap_usd: float
+    session_cap_usd: float
+
+
+class BudgetLimitsUpdate(BaseModel):
+    """Request model for updating budget limits."""
+
+    daily_cap_usd: Optional[float] = None
+    monthly_cap_usd: Optional[float] = None
+    session_cap_usd: Optional[float] = None
+
+
 class CostEstimateRequest(BaseModel):
     """Request model for cost estimation."""
 

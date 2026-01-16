@@ -263,11 +263,20 @@ def start(
     from iopaint.api import Api
     from iopaint.schema import ApiConfig
 
+    # Holder for Api instance - allows lifespan to access it after creation
+    api_holder: dict = {"api": None}
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Startup
         if inbrowser:
             webbrowser.open(f"http://localhost:{port}", new=0, autoraise=True)
+        if api_holder["api"] is not None:
+            await api_holder["api"]._start_job_runner()
         yield
+        # Shutdown
+        if api_holder["api"] is not None:
+            await api_holder["api"]._stop_job_runner()
 
     app = FastAPI(lifespan=lifespan)
 
@@ -304,6 +313,7 @@ def start(
     )
     print(api_config.model_dump_json(indent=4))
     api = Api(app, api_config)
+    api_holder["api"] = api  # Set reference so lifespan can access it
     api.launch()
 
 

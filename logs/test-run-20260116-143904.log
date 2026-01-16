@@ -1,0 +1,18 @@
+Running: cd web_app && npm run lint
+---
+
+> web_app@0.0.0 lint
+> eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
+
+
+/Users/ikovale/Dev/IOPaint-mod/web_app/src/components/OpenAI/__tests__/generation-history.test.tsx
+  21:3  error  Unnecessary semicolon  no-extra-semi
+
+/Users/ikovale/Dev/IOPaint-mod/web_app/src/lib/states.ts
+  86:3  error  'OpenAIApiError' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 2 problems (2 errors, 0 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+
+---
+Command failed with status 1

@@ -1,7 +1,7 @@
 import { persist } from "zustand/middleware"
 import { shallow } from "zustand/shallow"
 import { immer } from "zustand/middleware/immer"
-import { castDraft, type WritableDraft } from "immer"
+import { castDraft, type Draft } from "immer"
 import { createWithEqualityFn } from "zustand/traditional"
 import {
   AdjustMaskOperate,
@@ -24,9 +24,13 @@ import {
   PresetConfig,
   CostEstimate,
   BudgetStatus,
+  BudgetLimits,
   GenerationJob,
   HistorySnapshot,
-  OpenAIModelInfo,
+  OpenAICapabilities,
+  OpenAICapabilityModel,
+  OpenAIModeCapabilities,
+  OpenAIImageMode,
   OpenAIProvider,
   OpenAIToolMode,
   PRESET_CONFIGS,
@@ -53,8 +57,7 @@ import {
 } from "./utils"
 import inpaint, { getGenInfo, postAdjustMask, runPlugin } from "./api"
 import {
-  listOpenAIModelsCached,
-  refreshOpenAIModels,
+  fetchOpenAICapabilities,
   refinePrompt as apiRefinePrompt,
   submitOpenAIJob,
   getOpenAIJob,
@@ -64,6 +67,8 @@ import {
   removeBackground,
   estimateGenerationCost,
   getOpenAIBudgetStatus,
+  getOpenAIBudgetLimits,
+  updateOpenAIBudgetLimits,
   createThumbnail,
   resolveOpenAIBaseUrl,
   // History API (Epic 3)
@@ -78,12 +83,33 @@ import {
   deleteHistorySnapshot as apiDeleteHistorySnapshot,
   clearHistorySnapshots as apiClearHistorySnapshots,
   type BackendHistorySnapshot,
-  OpenAIApiError,
 } from "./openai-api"
 import { toast } from "@/components/ui/use-toast"
 
 const OPENAI_JOB_POLL_INTERVAL_MS = 5000
+const OPENAI_JOB_POLL_TIMEOUT_MS = 10 * 60 * 1000
+const OPENAI_JOB_POLL_MAX_RETRYABLE = 3
+const OPENAI_TERMINAL_SUCCESS = new Set(["succeeded", "completed"])
+const OPENAI_TERMINAL_FAILURE = new Set([
+  "failed",
+  "cancelled",
+  "blocked",
+  "blocked_budget",
+  "rejected",
+  "expired",
+])
+const OPENAI_RETRYABLE = new Set([
+  "timeout",
+  "rate_limited",
+  "overloaded",
+  "service_unavailable",
+  "internal_error",
+])
 const openAIJobPollers = new Map<string, number>()
+const openAIJobPollerMeta = new Map<
+  string,
+  { startedAt: number; retryCount: number }
+>()
 
 const toBase64Payload = async (blob: Blob): Promise<string> => {
   const dataUrl = await convertToBase64(blob)
@@ -122,13 +148,76 @@ const mapBackendJobToFrontend = (job: BackendGenerationJob): GenerationJob => {
   }
 }
 
+const getModeCapabilities = (
+  capabilities: OpenAICapabilities | null,
+  mode: OpenAIImageMode
+) => capabilities?.modes[mode]
+
+const getModelCapabilities = (
+  capabilities: OpenAICapabilities | null,
+  mode: OpenAIImageMode,
+  modelId: string
+): OpenAICapabilityModel | undefined => {
+  if (!capabilities || !modelId) return undefined
+  const modeCaps = getModeCapabilities(capabilities, mode)
+  if (!modeCaps) return undefined
+  return modeCaps.models.find(
+    (model) => model.apiId === modelId || model.id === modelId
+  )
+}
+
+const resolveModelSelection = (
+  modeCaps: OpenAIModeCapabilities | undefined,
+  currentId: string
+): string => {
+  if (!modeCaps || modeCaps.models.length === 0) return ""
+  const match = modeCaps.models.find(
+    (model) => model.apiId === currentId || model.id === currentId
+  )
+  return match ? match.apiId : modeCaps.models[0].apiId
+}
+
+const resolveOption = <T,>(
+  value: T,
+  options: T[],
+  fallback?: T
+): T => {
+  if (options.length === 0) return value
+  if (options.includes(value)) return value
+  if (fallback && options.includes(fallback)) return fallback
+  return options[0]
+}
+
+const resolvePresetConfig = (
+  preset: GenerationPreset,
+  customConfig: PresetConfig,
+  modelCaps?: OpenAICapabilityModel
+): PresetConfig => {
+  const base = preset === GenerationPreset.CUSTOM
+    ? customConfig
+    : PRESET_CONFIGS[preset]
+
+  if (!modelCaps) {
+    return base
+  }
+
+  return {
+    ...base,
+    size: resolveOption(base.size, modelCaps.sizes, modelCaps.defaultSize),
+    quality: resolveOption(
+      base.quality,
+      modelCaps.qualities,
+      modelCaps.defaultQuality
+    ),
+  }
+}
 type StoreState = AppState & AppAction
 
 type StoreSet = (
   nextStateOrUpdater:
     | StoreState
     | Partial<StoreState>
-    | ((state: WritableDraft<StoreState>) => void),
+    | ((state: Draft<StoreState>) => void),
   shouldReplace?: boolean
 ) => void
 
@@ -140,6 +229,26 @@ const startOpenAIJobPolling = (
   options: { loadIntoEditor: boolean }
 ) => {
   if (openAIJobPollers.has(jobId)) return
+
+  const finalizeJobPolling = (
+    jobIdToStop: string,
+    getState: () => StoreState,
+    setState: StoreSet
+  ) => {
+    if (getState().openAIState.currentJobId === jobIdToStop) {
+      setState((state) => {
+        state.openAIState.currentJobId = null
+        state.openAIState.isOpenAIGenerating = false
+      })
+    }
+
+    const intervalId = openAIJobPollers.get(jobIdToStop)
+    if (intervalId) {
+      window.clearInterval(intervalId)
+    }
+    openAIJobPollers.delete(jobIdToStop)
+    openAIJobPollerMeta.delete(jobIdToStop)
+  }
 
   const poll = async () => {
     try {
@@ -163,12 +272,54 @@ const startOpenAIJobPolling = (
         )
       }
 
-      const isTerminal = [
-        "succeeded",
-        "failed",
-        "blocked_budget",
-        "cancelled",
-      ].includes(mappedJob.status)
+      const meta = openAIJobPollerMeta.get(jobId) ?? {
+        startedAt: Date.now(),
+        retryCount: 0,
+      }
+      openAIJobPollerMeta.set(jobId, meta)
+
+      if (OPENAI_RETRYABLE.has(mappedJob.status)) {
+        meta.retryCount += 1
+        openAIJobPollerMeta.set(jobId, meta)
+        if (meta.retryCount > OPENAI_JOB_POLL_MAX_RETRYABLE) {
+          get().updateHistoryJob(
+            jobId,
+            {
+              status: "failed",
+              errorMessage: "Job failed after repeated retryable errors.",
+            },
+            { skipBackend: true }
+          )
+          toast({
+            variant: "destructive",
+            description: "Job failed after repeated retryable errors.",
+          })
+          finalizeJobPolling(jobId, get, set)
+        }
+        return
+      }
+
+      const elapsed = Date.now() - meta.startedAt
+      if (elapsed > OPENAI_JOB_POLL_TIMEOUT_MS) {
+        get().updateHistoryJob(
+          jobId,
+          {
+            status: "failed",
+            errorMessage: "Job timed out while waiting for completion.",
+          },
+          { skipBackend: true }
+        )
+        toast({
+          variant: "destructive",
+          description: "Job timed out while waiting for completion.",
+        })
+        finalizeJobPolling(jobId, get, set)
+        return
+      }
+
+      const isTerminal =
+        OPENAI_TERMINAL_SUCCESS.has(mappedJob.status) ||
+        OPENAI_TERMINAL_FAILURE.has(mappedJob.status)
 
       if (isTerminal) {
         if (backendJob.result_image_id) {
@@ -186,19 +337,17 @@ const startOpenAIJobPolling = (
           )
 
           if (options.loadIntoEditor) {
-            const newRender = new Image()
-            await loadImage(newRender, resultDataUrl)
-            const storedRender = createStoredImage(newRender)
-            get().setImageSize(newRender.width, newRender.height)
-            set((state) => {
-              state.editorState.renders.push(storedRender)
-              state.editorState.curLineGroup = []
-              state.editorState.extraMasks = []
-            })
+            // Convert result to File and load into editor (same as GenerationHistory.handleOpenInEditor)
+            const generatedFile = await srcToFile(
+              resultDataUrl,
+              `generation-${jobId}.png`,
+              "image/png"
+            )
+            await get().setFile(generatedFile)
           }
         }
 
-        if (mappedJob.status === "succeeded") {
+        if (OPENAI_TERMINAL_SUCCESS.has(mappedJob.status)) {
           toast({
             description: "Job completed successfully!",
           })
@@ -221,19 +370,7 @@ const startOpenAIJobPolling = (
         }
 
         get().refreshBudgetStatus()
-
-        if (get().openAIState.currentJobId === jobId) {
-          set((state) => {
-            state.openAIState.currentJobId = null
-            state.openAIState.isOpenAIGenerating = false
-          })
-        }
-
-        const intervalId = openAIJobPollers.get(jobId)
-        if (intervalId) {
-          window.clearInterval(intervalId)
-        }
-        openAIJobPollers.delete(jobId)
+        finalizeJobPolling(jobId, get, set)
       }
     } catch (error) {
       console.error("Failed to poll job:", error)
@@ -359,9 +496,10 @@ type OpenAIState = {
   // Mode toggle - switches between local models and OpenAI API
   isOpenAIMode: boolean
 
-  // Available models from OpenAI API
-  openAIModels: OpenAIModelInfo[]
-  selectedOpenAIModel: string
+  // Capabilities from OpenAI API
+  capabilities: OpenAICapabilities | null
+  selectedGenerateModel: string
+  selectedEditModel: string
 
   // Intent → Refine → Final prompt flow
   openAIIntent: string
@@ -390,6 +528,7 @@ type OpenAIState = {
 
   // Budget status cache
   budgetStatus: BudgetStatus | null
+  budgetLimits: BudgetLimits | null
 
   // Edit mode (E4.2)
   isOpenAIEditMode: boolean
@@ -404,9 +543,10 @@ type OpenAIAction = {
   setOpenAIMode: (enabled: boolean) => void
   setOpenAIEditMode: (enabled: boolean) => void
 
-  // Model management
-  fetchOpenAIModels: () => Promise<void>
-  setSelectedOpenAIModel: (modelId: string) => void
+  // Capabilities management
+  fetchOpenAICapabilities: () => Promise<void>
+  setSelectedGenerateModel: (modelId: string) => void
+  setSelectedEditModel: (modelId: string) => void
 
   // Intent/Prompt flow
   setOpenAIIntent: (intent: string) => void
@@ -417,7 +557,7 @@ type OpenAIAction = {
   // Presets
   setSelectedPreset: (preset: GenerationPreset) => void
   updateCustomPresetConfig: (config: Partial<PresetConfig>) => void
-  getActivePresetConfig: () => PresetConfig
+  getActivePresetConfig: (mode?: OpenAIImageMode) => PresetConfig
 
   // Cost estimation
   updateCostEstimate: () => Promise<void>
@@ -447,6 +587,8 @@ type OpenAIAction = {
 
   // Budget
   refreshBudgetStatus: () => Promise<void>
+  refreshBudgetLimits: () => Promise<void>
+  updateBudgetLimits: (limits: BudgetLimits) => Promise<void>
 
   // Edit flow
   setEditSourceImage: (dataUrl: string | null) => void
@@ -689,8 +831,9 @@ const defaultValues: AppState = {
   // OpenAI State defaults (Epic 4)
   openAIState: {
     isOpenAIMode: false,
-    openAIModels: [],
-    selectedOpenAIModel: "gpt-image-1",
+    capabilities: null,
+    selectedGenerateModel: "",
+    selectedEditModel: "",
     openAIIntent: "",
     isRefiningPrompt: false,
     openAIRefinedPrompt: "",
@@ -707,6 +850,7 @@ const defaultValues: AppState = {
     historyFilter: "all",
     historySnapshots: [],
     budgetStatus: null,
+    budgetLimits: null,
     isOpenAIEditMode: false,
     editSourceImageDataUrl: null,
   },
@@ -1549,10 +1693,11 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         set((state) => {
           state.openAIState.isOpenAIMode = enabled
         })
-        // Fetch models when entering OpenAI mode
+        // Fetch capabilities when entering OpenAI mode
         if (enabled) {
-          get().fetchOpenAIModels()
+          get().fetchOpenAICapabilities()
           get().refreshBudgetStatus()
+          get().refreshBudgetLimits()
         }
       },
 
@@ -1562,51 +1707,72 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         })
       },
 
-      // Model management
-      fetchOpenAIModels: async () => {
+      // Capabilities management
+      fetchOpenAICapabilities: async () => {
         try {
-          let models: OpenAIModelInfo[] | null = null
           const baseUrl = resolveOpenAIBaseUrl(
             get().settings.openAIProvider
           )
-          try {
-            models = await listOpenAIModelsCached(baseUrl)
-          } catch (e) {
-            if (!(e instanceof OpenAIApiError) || e.statusCode !== 404) {
-              throw e
-            }
-          }
-
-          if (!models) {
-            models = await refreshOpenAIModels(baseUrl)
-          }
-
-          const resolvedModels = models ?? []
+          const capabilities = await fetchOpenAICapabilities(baseUrl)
 
           set((state) => {
-            state.openAIState.openAIModels = resolvedModels
-            // Set default model if not already selected
-            if (
-              !state.openAIState.selectedOpenAIModel &&
-              resolvedModels.length > 0
-            ) {
-              state.openAIState.selectedOpenAIModel = resolvedModels[0].id
-            }
+            const generateCaps = getModeCapabilities(
+              capabilities,
+              "images_generate"
+            )
+            const editCaps = getModeCapabilities(capabilities, "images_edit")
+            const selectedGenerateModel = resolveModelSelection(
+              generateCaps,
+              state.openAIState.selectedGenerateModel
+            )
+            const selectedEditModel = resolveModelSelection(
+              editCaps,
+              state.openAIState.selectedEditModel
+            )
+            const generateModelCaps = getModelCapabilities(
+              capabilities,
+              "images_generate",
+              selectedGenerateModel
+            )
+            state.openAIState.capabilities = capabilities
+            state.openAIState.selectedGenerateModel = selectedGenerateModel
+            state.openAIState.selectedEditModel = selectedEditModel
+            state.openAIState.customPresetConfig = resolvePresetConfig(
+              GenerationPreset.CUSTOM,
+              state.openAIState.customPresetConfig,
+              generateModelCaps
+            )
           })
+          get().updateCostEstimate()
         } catch (e: any) {
           toast({
             variant: "destructive",
-            description: `Failed to fetch OpenAI models: ${e.message}`,
+            description: `Failed to fetch OpenAI capabilities: ${e.message}`,
           })
         }
       },
 
-      setSelectedOpenAIModel: (modelId: string) => {
+      setSelectedGenerateModel: (modelId: string) => {
         set((state) => {
-          state.openAIState.selectedOpenAIModel = modelId
+          const modelCaps = getModelCapabilities(
+            state.openAIState.capabilities,
+            "images_generate",
+            modelId
+          )
+          state.openAIState.selectedGenerateModel = modelId
+          state.openAIState.customPresetConfig = resolvePresetConfig(
+            GenerationPreset.CUSTOM,
+            state.openAIState.customPresetConfig,
+            modelCaps
+          )
         })
-        // Update cost estimate when model changes
         get().updateCostEstimate()
+      },
+
+      setSelectedEditModel: (modelId: string) => {
+        set((state) => {
+          state.openAIState.selectedEditModel = modelId
+        })
       },
 
       // Intent/Prompt flow
@@ -1689,25 +1855,34 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         }
       },
 
-      getActivePresetConfig: (): PresetConfig => {
-        const { selectedPreset, customPresetConfig } = get().openAIState
-        if (selectedPreset === GenerationPreset.CUSTOM) {
-          return customPresetConfig
-        }
-        return PRESET_CONFIGS[selectedPreset]
+      getActivePresetConfig: (
+        mode: OpenAIImageMode = "images_generate"
+      ): PresetConfig => {
+        const {
+          selectedPreset,
+          customPresetConfig,
+          capabilities,
+          selectedGenerateModel,
+          selectedEditModel,
+        } = get().openAIState
+        const modelId =
+          mode === "images_edit" ? selectedEditModel : selectedGenerateModel
+        const modelCaps = getModelCapabilities(capabilities, mode, modelId)
+        return resolvePresetConfig(selectedPreset, customPresetConfig, modelCaps)
       },
 
       // Cost estimation
       updateCostEstimate: async () => {
-        const { selectedOpenAIModel, openAIRefinedPrompt } = get().openAIState
-        if (!openAIRefinedPrompt) return
+        const { selectedGenerateModel, openAIRefinedPrompt } =
+          get().openAIState
+        if (!openAIRefinedPrompt || !selectedGenerateModel) return
 
-        const config = get().getActivePresetConfig()
+        const config = get().getActivePresetConfig("images_generate")
 
         try {
           const estimate = await estimateGenerationCost({
             operation: "generate",
-            model: selectedOpenAIModel,
+            model: selectedGenerateModel,
             size: config.size,
             quality: config.quality,
             n: config.n,
@@ -1725,9 +1900,17 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         const {
           openAIRefinedPrompt,
           openAINegativePrompt,
-          selectedOpenAIModel,
+          selectedGenerateModel,
           currentCostEstimate,
         } = get().openAIState
+
+        if (!selectedGenerateModel) {
+          toast({
+            variant: "destructive",
+            description: "No OpenAI generate model available",
+          })
+          return
+        }
 
         if (!openAIRefinedPrompt.trim()) {
           toast({
@@ -1737,12 +1920,12 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           return
         }
 
-        const config = get().getActivePresetConfig()
+        const config = get().getActivePresetConfig("images_generate")
 
         const request: GenerateImageRequest = {
           prompt: openAIRefinedPrompt,
           negativePrompt: openAINegativePrompt,
-          model: selectedOpenAIModel,
+          model: selectedGenerateModel,
           size: config.size,
           quality: config.quality,
           n: config.n,
@@ -1770,7 +1953,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           openAIIntent,
           selectedPreset,
           currentCostEstimate,
-          selectedOpenAIModel,
+          selectedGenerateModel,
           openAIRefinedPrompt,
           openAINegativePrompt,
         } = get().openAIState
@@ -1793,7 +1976,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
               n: pendingGenerationRequest.n,
               size: pendingGenerationRequest.size,
               quality: pendingGenerationRequest.quality,
-              model: selectedOpenAIModel,
+              model: selectedGenerateModel,
               intent: openAIIntent,
               refined_prompt: openAIRefinedPrompt,
               negative_prompt: openAINegativePrompt,
@@ -1812,7 +1995,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           })
 
           startOpenAIJobPolling(job.id, baseUrl, get, set, {
-            loadIntoEditor: false,
+            loadIntoEditor: true,
           })
         } catch (e: any) {
           set((state) => {
@@ -2078,6 +2261,32 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         }
       },
 
+      refreshBudgetLimits: async () => {
+        try {
+          const limits = await getOpenAIBudgetLimits()
+          set((state) => {
+            state.openAIState.budgetLimits = limits
+          })
+        } catch (e: any) {
+          console.error("Failed to fetch budget limits:", e)
+        }
+      },
+
+      updateBudgetLimits: async (limits: BudgetLimits) => {
+        try {
+          const updated = await updateOpenAIBudgetLimits(limits)
+          set((state) => {
+            state.openAIState.budgetLimits = updated
+          })
+          get().refreshBudgetStatus()
+        } catch (e: any) {
+          toast({
+            variant: "destructive",
+            description: `Failed to update budget limits: ${e.message}`,
+          })
+        }
+      },
+
       // Edit flow
       setEditSourceImage: (dataUrl: string | null) => {
         set((state) => {
@@ -2089,7 +2298,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         const {
           openAIRefinedPrompt,
           openAINegativePrompt,
-          selectedOpenAIModel,
+          selectedEditModel,
           editSourceImageDataUrl,
           openAIIntent,
           selectedPreset,
@@ -2121,6 +2330,14 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           return
         }
 
+        if (!selectedEditModel) {
+          toast({
+            variant: "destructive",
+            description: "No OpenAI edit model available",
+          })
+          return
+        }
+
         set((state) => {
           state.openAIState.isOpenAIGenerating = true
         })
@@ -2142,7 +2359,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           const sourceResponse = await fetch(editSourceImageDataUrl)
           const sourceBlob = await sourceResponse.blob()
 
-          const config = get().getActivePresetConfig()
+          const config = get().getActivePresetConfig("images_edit")
           const image_b64 = await toBase64Payload(sourceBlob)
           const mask_b64 = await toBase64Payload(maskBlob)
 
@@ -2150,7 +2367,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
             {
               tool: "edit",
               prompt: openAIRefinedPrompt,
-              model: selectedOpenAIModel,
+              model: selectedEditModel,
               size: config.size,
               quality: config.quality,
               n: config.n,
@@ -2189,7 +2406,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         const {
           openAIRefinedPrompt,
           openAINegativePrompt,
-          selectedOpenAIModel,
+          selectedEditModel,
           editSourceImageDataUrl,
           openAIIntent,
           selectedPreset,
@@ -2221,6 +2438,14 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           return
         }
 
+        if (!selectedEditModel) {
+          toast({
+            variant: "destructive",
+            description: "No OpenAI edit model available",
+          })
+          return
+        }
+
         set((state) => {
           state.openAIState.isOpenAIGenerating = true
         })
@@ -2242,7 +2467,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           const sourceResponse = await fetch(editSourceImageDataUrl)
           const sourceBlob = await sourceResponse.blob()
 
-          const config = get().getActivePresetConfig()
+          const config = get().getActivePresetConfig("images_edit")
           const image_b64 = await toBase64Payload(sourceBlob)
           const mask_b64 = await toBase64Payload(maskBlob)
 
@@ -2250,7 +2475,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
             {
               tool: "outpaint",
               prompt: openAIRefinedPrompt,
-              model: selectedOpenAIModel,
+              model: selectedEditModel,
               size: config.size,
               quality: config.quality,
               n: config.n,
@@ -2287,7 +2512,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
 
       runOpenAIVariation: async () => {
         const {
-          selectedOpenAIModel,
+          selectedEditModel,
           editSourceImageDataUrl,
           openAIIntent,
           openAIRefinedPrompt,
@@ -2303,6 +2528,14 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           return
         }
 
+        if (!selectedEditModel) {
+          toast({
+            variant: "destructive",
+            description: "No OpenAI edit model available",
+          })
+          return
+        }
+
         set((state) => {
           state.openAIState.isOpenAIGenerating = true
         })
@@ -2313,14 +2546,14 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           )
           const sourceResponse = await fetch(editSourceImageDataUrl)
           const sourceBlob = await sourceResponse.blob()
-          const config = get().getActivePresetConfig()
+          const config = get().getActivePresetConfig("images_edit")
           const image_b64 = await toBase64Payload(sourceBlob)
 
           const response = await submitOpenAIJob(
             {
               tool: "variation",
               prompt: openAIRefinedPrompt || "Variation",
-              model: selectedOpenAIModel,
+              model: selectedEditModel,
               size: config.size,
               n: config.n,
               image_b64,
@@ -2391,7 +2624,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
     })),
     {
       name: "ZUSTAND_STATE", // name of the item in the storage (must be unique)
-      version: 3, // Bumped for OpenAI state addition
+      version: 4, // Bumped for OpenAI capabilities state
       partialize: (state) =>
         Object.fromEntries(
           Object.entries(state).filter(([key]) =>

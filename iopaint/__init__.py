@@ -1,10 +1,26 @@
 import os
+import sys
 import importlib.util
 import shutil
 import ctypes
 import logging
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
+
+def _configure_logging():
+    """Configure loguru logging based on IOPAINT_VERBOSE environment variable."""
+    from loguru import logger
+
+    verbose = os.environ.get("IOPAINT_VERBOSE", "").lower() in ("1", "true", "yes")
+    level = "DEBUG" if verbose else "INFO"
+
+    logger.remove()  # Remove default handler
+    logger.add(
+        sys.stderr,
+        level=level,
+        format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    )
 # https://github.com/pytorch/pytorch/issues/27971#issuecomment-1768868068
 os.environ["ONEDNN_PRIMITIVE_CACHE_CAPACITY"] = "1"
 os.environ["LRU_CACHE_CAPACITY"] = "1"
@@ -50,9 +66,12 @@ def entry_point():
     # To make os.environ["XDG_CACHE_HOME"] = args.model_cache_dir works for diffusers
     # https://github.com/huggingface/diffusers/blob/be99201a567c1ccd841dc16fb24e88f7f239c187/src/diffusers/utils/constants.py#L18
     from iopaint.config_loader import load_env_file
-    from iopaint.cli import typer_app
 
     load_env_file()
+    _configure_logging()  # Must be after load_env_file to pick up IOPAINT_VERBOSE
+
+    from iopaint.cli import typer_app
+
     fix_window_pytorch()
 
     typer_app()

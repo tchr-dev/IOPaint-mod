@@ -1,0 +1,21 @@
+Running: cd web_app && npm run build
+---
+
+> web_app@0.0.0 build
+> tsc && vite build
+
+src/components/OpenAI/__tests__/capabilities-ui.test.tsx(38,7): error TS2322: Type '{ created: number; modes: { images_generate: { models: { id: string; apiId: string; label: string; sizes: string[]; qualities: string[]; defaultSize: string; defaultQuality: string; }[]; defaultModel: string; }; images_edit: { ...; }; }; }' is not assignable to type 'OpenAICapabilities'.
+  The types of 'modes.images_generate.models' are incompatible between these types.
+    Type '{ id: string; apiId: string; label: string; sizes: string[]; qualities: string[]; defaultSize: string; defaultQuality: string; }[]' is not assignable to type 'OpenAICapabilityModel[]'.
+      Type '{ id: string; apiId: string; label: string; sizes: string[]; qualities: string[]; defaultSize: string; defaultQuality: string; }' is not assignable to type 'OpenAICapabilityModel'.
+        Types of property 'sizes' are incompatible.
+          Type 'string[]' is not assignable to type 'OpenAIImageSize[]'.
+            Type 'string' is not assignable to type 'OpenAIImageSize'.
+src/components/OpenAI/__tests__/capabilities-ui.test.tsx(51,1): error TS2582: Cannot find name 'describe'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/OpenAI/__tests__/capabilities-ui.test.tsx(52,3): error TS2304: Cannot find name 'beforeEach'.
+src/components/OpenAI/__tests__/capabilities-ui.test.tsx(57,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/OpenAI/__tests__/capabilities-ui.test.tsx(66,5): error TS2304: Cannot find name 'expect'.
+src/components/OpenAI/__tests__/capabilities-ui.test.tsx(74,3): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+src/components/OpenAI/__tests__/capabilities-ui.test.tsx(83,5): error TS2304: Cannot find name 'expect'.
+---
+Command failed with status 2

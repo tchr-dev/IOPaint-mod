@@ -1,6 +1,6 @@
 """Pydantic models for OpenAI-compatible API requests and responses."""
 
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -214,3 +214,34 @@ class CreateVariationResponse(BaseModel):
 
     created: int = Field(..., description="Unix timestamp of creation")
     data: List[ImageData] = Field(default_factory=list)
+
+
+# =========================================================================
+# Capabilities
+# =========================================================================
+
+
+class OpenAICapabilityModel(BaseModel):
+    """Supported model capabilities for image operations."""
+
+    id: str = Field(..., description="Normalized model identifier")
+    api_id: str = Field(..., description="Provider-specific model identifier")
+    label: str = Field(..., description="Display label")
+    sizes: List[ImageSize] = Field(default_factory=list)
+    qualities: List[ImageQuality] = Field(default_factory=list)
+    default_size: Optional[ImageSize] = None
+    default_quality: Optional[ImageQuality] = None
+
+
+class OpenAIModeCapabilities(BaseModel):
+    """Capabilities for a specific image mode."""
+
+    models: List[OpenAICapabilityModel] = Field(default_factory=list)
+    default_model: Optional[str] = None
+
+
+class OpenAICapabilitiesResponse(BaseModel):
+    """Response for /api/v1/openai/capabilities."""
+
+    created: int = Field(..., description="Unix timestamp of creation")
+    modes: Dict[str, OpenAIModeCapabilities] = Field(default_factory=dict)

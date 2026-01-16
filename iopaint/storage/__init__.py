@@ -34,6 +34,7 @@ from .history import HistoryStorage
 from .images import ImageStorage
 from .inputs import InputStorage
 from .model_cache import ModelCacheStorage
+from .openai_job_files import OpenAIJobFilesStorage
 from .models import (
     GenerationJob,
     GenerationJobCreate,
@@ -53,6 +54,7 @@ __all__ = [
     "ImageStorage",
     "ModelCacheStorage",
     "InputStorage",
+    "OpenAIJobFilesStorage",
     "GenerationJob",
     "GenerationJobCreate",
     "GenerationJobUpdate",

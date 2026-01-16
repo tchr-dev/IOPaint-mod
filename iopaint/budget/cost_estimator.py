@@ -118,6 +118,10 @@ class CostEstimator:
         self.tier_low = tier_low
         self.tier_high = tier_high
 
+    @staticmethod
+    def _normalize_model_id(model: str) -> str:
+        return model.split("/")[-1].lower()
+
     def estimate(
         self,
         model: str,
@@ -139,7 +143,8 @@ class CostEstimator:
             Estimated cost in USD
         """
         # Get pricing rule for model or use default
-        rule = self.pricing.get(model.lower(), self.pricing.get("default"))
+        model_key = self._normalize_model_id(model)
+        rule = self.pricing.get(model_key, self.pricing.get("default"))
         if rule is None:
             rule = DEFAULT_PRICING["default"]
 

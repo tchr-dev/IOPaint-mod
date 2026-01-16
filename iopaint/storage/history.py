@@ -196,6 +196,54 @@ class HistoryStorage:
 
     # --- Job Operations ---
 
+    def cleanup_orphaned_jobs(self) -> dict:
+        """Mark orphaned jobs from previous server runs.
+
+        Called at startup to handle jobs that were interrupted by server restart.
+        - RUNNING jobs -> FAILED with "Interrupted by server restart"
+        - QUEUED jobs -> CANCELLED with "Cancelled due to server restart"
+
+        Returns:
+            Dict with counts: {"running_to_failed": N, "queued_to_cancelled": M}
+        """
+        now = datetime.utcnow().isoformat()
+        result = {"running_to_failed": 0, "queued_to_cancelled": 0}
+
+        with self._transaction() as cursor:
+            # Mark RUNNING jobs as FAILED
+            cursor.execute(
+                """
+                UPDATE generation_jobs
+                SET status = ?, error_message = ?, completed_at = ?
+                WHERE status = ?
+                """,
+                (
+                    JobStatus.FAILED.value,
+                    "Interrupted by server restart",
+                    now,
+                    JobStatus.RUNNING.value,
+                ),
+            )
+            result["running_to_failed"] = cursor.rowcount
+
+            # Mark QUEUED jobs as CANCELLED
+            cursor.execute(
+                """
+                UPDATE generation_jobs
+                SET status = ?, error_message = ?, completed_at = ?
+                WHERE status = ?
+                """,
+                (
+                    JobStatus.CANCELLED.value,
+                    "Cancelled due to server restart",
+                    now,
+                    JobStatus.QUEUED.value,
+                ),
+            )
+            result["queued_to_cancelled"] = cursor.rowcount
+
+        return result
+
     def save_job(
         self, session_id: str, job: GenerationJobCreate, job_id: Optional[str] = None
     ) -> GenerationJob:

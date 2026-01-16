@@ -24,6 +24,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   ImageIcon,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -49,10 +50,15 @@ export function OpenAIEditPanel() {
     runOpenAIVariation,
     setOpenAIEditMode,
     budgetStatus,
+    capabilities,
+    selectedEditModel,
     // Get current image
     getCurrentTargetFile,
     setEditSourceImage,
     editSourceImageDataUrl,
+    // Cancel support
+    currentJobId,
+    cancelOpenAIJob,
   ] = useStore((state) => [
     state.file,
     state.editorState.curLineGroup,
@@ -66,13 +72,19 @@ export function OpenAIEditPanel() {
     state.runOpenAIVariation,
     state.setOpenAIEditMode,
     state.openAIState.budgetStatus,
+    state.openAIState.capabilities,
+    state.openAIState.selectedEditModel,
     state.getCurrentTargetFile,
     state.setEditSourceImage,
     state.openAIState.editSourceImageDataUrl,
+    state.openAIState.currentJobId,
+    state.cancelOpenAIJob,
   ])
   const [toolMode, setToolMode] = useState<"edit" | "outpaint" | "variation">(
     "edit"
   )
+  const editModels = capabilities?.modes.images_edit?.models ?? []
+  const hasEditCapabilities = editModels.length > 0 && !!selectedEditModel
 
   // Set up source image when entering edit mode
   useEffect(() => {
@@ -98,9 +110,13 @@ export function OpenAIEditPanel() {
   const hasMask = curLineGroup.length > 0 || extraMasks.length > 0
   const hasPrompt = editPrompt.trim().length > 0
   const isBudgetBlocked = budgetStatus?.status === "blocked"
-  const canEdit = hasMask && hasPrompt && !isGenerating && !isBudgetBlocked
+  const canEdit =
+    hasEditCapabilities && hasMask && hasPrompt && !isGenerating && !isBudgetBlocked
   const canVariation =
-    !!editSourceImageDataUrl && !isGenerating && !isBudgetBlocked
+    hasEditCapabilities &&
+    !!editSourceImageDataUrl &&
+    !isGenerating &&
+    !isBudgetBlocked
 
   const primaryAction = () => {
     if (toolMode === "variation") {
@@ -138,12 +154,19 @@ export function OpenAIEditPanel() {
 
       <Separator />
 
+      {!hasEditCapabilities && (
+        <div className="text-sm text-muted-foreground">
+          Image edit capabilities are unavailable for the current provider.
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <Button
           type="button"
           variant={toolMode === "edit" ? "default" : "outline"}
           size="sm"
           onClick={() => setToolMode("edit")}
+          disabled={!hasEditCapabilities}
         >
           Edit
         </Button>
@@ -152,6 +175,7 @@ export function OpenAIEditPanel() {
           variant={toolMode === "outpaint" ? "default" : "outline"}
           size="sm"
           onClick={() => setToolMode("outpaint")}
+          disabled={!hasEditCapabilities}
         >
           Outpaint
         </Button>
@@ -160,6 +184,7 @@ export function OpenAIEditPanel() {
           variant={toolMode === "variation" ? "default" : "outline"}
           size="sm"
           onClick={() => setToolMode("variation")}
+          disabled={!hasEditCapabilities}
         >
           Variation
         </Button>
@@ -247,32 +272,40 @@ export function OpenAIEditPanel() {
       <CostDisplay />
 
       {/* Apply button */}
-      <Button
-        onClick={primaryAction}
-        disabled={primaryDisabled}
-        size="lg"
-        className="w-full gap-2"
-      >
-        {isGenerating ? (
-          <>
+      {isGenerating ? (
+        <div className="flex gap-2">
+          <Button disabled size="lg" className="flex-1 gap-2">
             <Loader2 className="h-5 w-5 animate-spin" />
             {toolMode === "variation"
               ? "Creating Variation..."
               : toolMode === "outpaint"
               ? "Outpainting..."
               : "Applying Edit..."}
-          </>
-        ) : (
-          <>
-            <Wand2 className="h-5 w-5" />
-            {toolMode === "variation"
-              ? "Create Variation"
-              : toolMode === "outpaint"
-              ? "Apply Outpaint"
-              : "Apply Edit"}
-          </>
-        )}
-      </Button>
+          </Button>
+          <Button
+            variant="destructive"
+            size="lg"
+            onClick={() => currentJobId && cancelOpenAIJob(currentJobId)}
+            title="Cancel operation"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+      ) : (
+        <Button
+          onClick={primaryAction}
+          disabled={primaryDisabled}
+          size="lg"
+          className="w-full gap-2"
+        >
+          <Wand2 className="h-5 w-5" />
+          {toolMode === "variation"
+            ? "Create Variation"
+            : toolMode === "outpaint"
+            ? "Apply Outpaint"
+            : "Apply Edit"}
+        </Button>
+      )}
 
       {/* Validation messages */}
       {toolMode !== "variation" && !hasMask && !isGenerating && (

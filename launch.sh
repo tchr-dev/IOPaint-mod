@@ -6,18 +6,20 @@ shift || true
 
 MODEL="openai-compat"
 PORT="8080"
+VERBOSE=""
 
 usage() {
   cat <<'EOF'
-Usage: ./launch.sh <dev|prod> [--model MODEL] [--port PORT]
+Usage: ./launch.sh <dev|prod> [--model MODEL] [--port PORT] [--verbose]
 
 Modes:
   dev   Start backend + Vite dev server
   prod  Build frontend, copy assets, start backend
 
 Options:
-  --model   Model name (default: openai-compat)
-  --port    Backend port (default: 8080)
+  --model     Model name (default: openai-compat)
+  --port      Backend port (default: 8080)
+  --verbose   Enable verbose logging (DEBUG level)
 EOF
 }
 
@@ -30,6 +32,10 @@ while [[ $# -gt 0 ]]; do
     --port)
       PORT=${2:-}
       shift 2
+      ;;
+    --verbose|-v)
+      VERBOSE="1"
+      shift
       ;;
     -h|--help)
       usage
@@ -49,7 +55,7 @@ if [[ -z "$MODE" ]]; then
 fi
 
 run_backend() {
-  uv run python main.py start --model "$MODEL" --port "$PORT"
+  IOPAINT_VERBOSE="${VERBOSE}" uv run python main.py start --model "$MODEL" --port "$PORT"
 }
 
 run_frontend_dev() {
@@ -62,7 +68,11 @@ run_frontend_build() {
 
 case "$MODE" in
   dev)
-    echo "Starting backend (model=$MODEL, port=$PORT) and frontend dev server..."
+    VERBOSE_MSG=""
+    if [[ -n "$VERBOSE" ]]; then
+      VERBOSE_MSG=", verbose=ON"
+    fi
+    echo "Starting backend (model=$MODEL, port=$PORT${VERBOSE_MSG}) and frontend dev server..."
     uv sync
     run_backend &
     BACKEND_PID=$!
@@ -78,7 +88,11 @@ case "$MODE" in
     wait "$BACKEND_PID" "$FRONTEND_PID"
     ;;
   prod)
-    echo "Building frontend and starting backend (model=$MODEL, port=$PORT)..."
+    VERBOSE_MSG=""
+    if [[ -n "$VERBOSE" ]]; then
+      VERBOSE_MSG=", verbose=ON"
+    fi
+    echo "Building frontend and starting backend (model=$MODEL, port=$PORT${VERBOSE_MSG})..."
     uv sync
     run_frontend_build
     mkdir -p iopaint/web_app

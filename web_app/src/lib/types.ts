@@ -173,6 +173,28 @@ export type OpenAIImageSize =
  */
 export type OpenAIImageQuality = "standard" | "hd"
 
+export type OpenAIImageMode = "images_generate" | "images_edit"
+
+export interface OpenAICapabilityModel {
+  id: string
+  apiId: string
+  label: string
+  sizes: OpenAIImageSize[]
+  qualities: OpenAIImageQuality[]
+  defaultSize?: OpenAIImageSize
+  defaultQuality?: OpenAIImageQuality
+}
+
+export interface OpenAIModeCapabilities {
+  models: OpenAICapabilityModel[]
+  defaultModel?: string
+}
+
+export interface OpenAICapabilities {
+  created: number
+  modes: Record<OpenAIImageMode, OpenAIModeCapabilities>
+}
+
 /**
  * Configuration for a generation preset
  */
@@ -240,6 +262,12 @@ export interface BudgetStatus {
   session: BudgetUsage
   status: "ok" | "warning" | "blocked"
   message: string | null
+}
+
+export interface BudgetLimits {
+  dailyCapUsd: number
+  monthlyCapUsd: number
+  sessionCapUsd: number
 }
 
 /**

@@ -22,6 +22,7 @@ class OpenAIConfig:
         AIE_OPENAI_TIMEOUT_S: Request timeout in seconds (default: 120)
         AIE_OPENAI_REFINE_MODEL: Model for prompt refinement (default: gpt-4o-mini)
         AIE_OPENAI_MODELS_CACHE_TTL_S: Model list cache TTL in seconds (default: 3600)
+        AIE_OPENAI_CAPABILITIES_CACHE_TTL_S: Capabilities cache TTL in seconds (default: 1800)
     """
 
     backend: str = field(
@@ -46,6 +47,17 @@ class OpenAIConfig:
     )
     models_cache_ttl_s: int = field(
         default_factory=lambda: int(os.getenv("AIE_OPENAI_MODELS_CACHE_TTL_S", "3600"))
+    )
+    capabilities_cache_ttl_s: int = field(
+        default_factory=lambda: int(
+            os.getenv("AIE_OPENAI_CAPABILITIES_CACHE_TTL_S", "1800")
+        )
+    )
+    skip_response_format: bool = field(
+        default_factory=lambda: os.getenv("AIE_OPENAI_SKIP_RESPONSE_FORMAT", "").lower() in ("1", "true", "yes")
+    )
+    skip_quality: bool = field(
+        default_factory=lambda: os.getenv("AIE_OPENAI_SKIP_QUALITY", "").lower() in ("1", "true", "yes")
     )
 
     @property
@@ -77,5 +89,6 @@ class OpenAIConfig:
             f"base_url={self.base_url!r}, "
             f"model={self.model!r}, "
             f"timeout_s={self.timeout_s}, "
-            f"models_cache_ttl_s={self.models_cache_ttl_s})"
+            f"models_cache_ttl_s={self.models_cache_ttl_s}, "
+            f"capabilities_cache_ttl_s={self.capabilities_cache_ttl_s})"
         )

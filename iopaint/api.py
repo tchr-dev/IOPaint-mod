@@ -74,6 +74,7 @@ from iopaint.services.config import ExternalImageServiceConfig
 # OpenAI-compatible API imports
 from iopaint.openai_compat.config import OpenAIConfig
 from iopaint.openai_compat.client import OpenAICompatClient
+from iopaint.openai_compat.capabilities import build_openai_capabilities
 from iopaint.openai_compat.models import (
     GenerateImageRequest as OpenAIGenerateRequest,
     GenerateImageResponse as OpenAIGenerateResponse,
@@ -85,6 +86,7 @@ from iopaint.openai_compat.models import (
     ImageData as OpenAIImageData,
     ImageSize as OpenAIImageSize,
     ResponseFormat as OpenAIResponseFormat,
+    OpenAICapabilitiesResponse,
 )
 from iopaint.openai_compat.errors import OpenAIError
 
@@ -94,6 +96,8 @@ from iopaint.budget import (
     BudgetStorage,
     BudgetGuard,
     BudgetStatusResponse,
+    BudgetLimits,
+    BudgetLimitsUpdate,
     BudgetError,
     BudgetExceededError,
     RateLimitedError,
@@ -119,6 +123,7 @@ from iopaint.storage import (
     JobOperation,
     JobStatus,
     ModelCacheStorage,
+    OpenAIJobFilesStorage,
 )
 
 
@@ -256,6 +261,7 @@ class Api:
         self.model_cache_storage = ModelCacheStorage(
             db_path=self.budget_config.db_path,
         )
+        self.openai_job_storage = OpenAIJobFilesStorage(self.budget_config.data_dir)
         self.external_services_config = ExternalImageServiceConfig()
         logger.info(f"Storage initialized: {self.budget_config.data_dir}")
 
@@ -266,6 +272,7 @@ class Api:
                 history_storage=self.history_storage,
                 image_storage=self.image_storage,
                 input_storage=self.input_storage,
+                openai_job_storage=self.openai_job_storage,
                 openai_client=self.openai_client,
                 budget_client=self.openai_budget_client,
             )
@@ -292,6 +299,8 @@ class Api:
         self.add_api_route("/api/v1/openai/models", self.api_openai_list_models, methods=["GET"])
         self.add_api_route("/api/v1/openai/models/cached", self.api_openai_cached_models, methods=["GET"])
         self.add_api_route("/api/v1/openai/models/refresh", self.api_openai_refresh_models, methods=["POST"])
+        self.add_api_route("/api/v1/openai/capabilities", self.api_openai_capabilities, methods=["GET"],
+                           response_model=OpenAICapabilitiesResponse)
         self.add_api_route("/api/v1/openai/refine", self.api_openai_refine_prompt, methods=["POST"],
                            response_model=RefinePromptResponse)
         self.add_api_route("/api/v1/openai/generate", self.api_openai_generate, methods=["POST"])
@@ -322,6 +331,10 @@ class Api:
         # Budget safety API routes
         self.add_api_route("/api/v1/budget/status", self.api_budget_status, methods=["GET"],
                            response_model=BudgetStatusResponse)
+        self.add_api_route("/api/v1/budget/limits", self.api_budget_limits, methods=["GET"],
+                           response_model=BudgetLimits)
+        self.add_api_route("/api/v1/budget/limits", self.api_update_budget_limits, methods=["POST"],
+                           response_model=BudgetLimits)
         self.add_api_route("/api/v1/budget/estimate", self.api_budget_estimate, methods=["POST"],
                            response_model=CostEstimateResponse)
 
@@ -401,6 +414,7 @@ class Api:
             self.model_cache_storage = ModelCacheStorage(
                 db_path=self.budget_config.db_path,
             )
+            self.openai_job_storage = OpenAIJobFilesStorage(self.budget_config.data_dir)
             self.external_services_config = ExternalImageServiceConfig()
 
             if self.job_runner:
@@ -636,6 +650,25 @@ class Api:
         except OpenAIError as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    def api_openai_capabilities(self, request: Request) -> Dict[str, object]:
+        """Return normalized OpenAI image capabilities for the UI."""
+        try:
+            client, _, config = self._resolve_openai_clients(request)
+            provider = f"capabilities:{self._openai_cache_provider(config)}"
+            cached = self.model_cache_storage.get_cached_models(
+                provider,
+                max_age_seconds=self.openai_config.capabilities_cache_ttl_s,
+            )
+            if cached:
+                return cached
+
+            models = client.list_models()
+            payload = build_openai_capabilities(models).model_dump()
+            self.model_cache_storage.set_cached_models(provider, payload)
+            return payload
+        except OpenAIError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
     def api_openai_refine_prompt(
         self, request: Request, req: OpenAIRefineRequest
     ) -> RefinePromptResponse:
@@ -654,15 +687,30 @@ class Api:
     def api_openai_generate(self, request: Request, req: OpenAIGenerateRequest):
         """Generate image from text prompt using OpenAI-compatible API."""
         try:
-            client, budget_client, _ = self._resolve_openai_clients(request)
+            client, budget_client, config = self._resolve_openai_clients(request)
+            session_id = self._get_session_id(request)
             if budget_client:
-                session_id = self._get_session_id(request)
                 image_bytes = budget_client.generate_image(
                     req,
                     session_id=session_id,
                 )
             else:
                 image_bytes = client.generate_image(req)
+
+            params = {
+                "size": req.size.value,
+                "quality": req.quality.value,
+                "n": req.n,
+            }
+            self._record_openai_image_job(
+                session_id=session_id,
+                operation=JobOperation.GENERATE,
+                model=req.model or config.model,
+                prompt=req.prompt,
+                params=params,
+                is_edit=False,
+                image_bytes=image_bytes,
+            )
             return Response(content=image_bytes, media_type="image/png")
         except BudgetError as e:
             self._raise_budget_error(e)
@@ -731,9 +779,9 @@ class Api:
             response_format=self._parse_openai_response_format(response_format),
         )
         try:
-            client, budget_client, _ = self._resolve_openai_clients(request)
+            client, budget_client, config = self._resolve_openai_clients(request)
+            session_id = self._get_session_id(request)
             if budget_client:
-                session_id = self._get_session_id(request)
                 result = budget_client.edit_image(
                     edit_request,
                     session_id=session_id,
@@ -742,6 +790,22 @@ class Api:
                 )
             else:
                 result = client.edit_image(edit_request)
+
+            params = {
+                "size": edit_request.size.value if edit_request.size else None,
+                "n": edit_request.n,
+            }
+            self._record_openai_image_job(
+                session_id=session_id,
+                operation=JobOperation.EDIT,
+                model=edit_request.model or config.model,
+                prompt=edit_request.prompt,
+                params=params,
+                is_edit=True,
+                image_bytes=result,
+                input_bytes=image_bytes,
+                mask_bytes=mask_bytes,
+            )
             return Response(content=result, media_type="image/png")
         except BudgetError as e:
             self._raise_budget_error(e)
@@ -798,6 +862,8 @@ class Api:
                 params=params,
                 is_edit=True,
                 image_bytes=result,
+                input_bytes=image_bytes,
+                mask_bytes=mask_bytes,
             )
             return self._build_openai_image_response(
                 request,
@@ -975,6 +1041,8 @@ class Api:
         params: Dict[str, object],
         is_edit: bool,
         image_bytes: bytes,
+        input_bytes: Optional[bytes] = None,
+        mask_bytes: Optional[bytes] = None,
     ) -> Tuple[GenerationJob, str]:
         job_params = {key: value for key, value in params.items() if value is not None}
         created_job = GenerationJobCreate(
@@ -996,6 +1064,35 @@ class Api:
         updated_job = self.history_storage.get_job(stored_job.id)
         if not updated_job:
             raise HTTPException(status_code=404, detail="Job not found after update")
+
+        metadata = {
+            "session_id": session_id,
+            "job_id": updated_job.id,
+            "backend": "openai",
+            "model": model,
+            "state": JobStatus.SUCCEEDED.value,
+            "created_at": updated_job.created_at.isoformat(),
+            "operation": operation.value,
+            "prompt": prompt,
+            "size": job_params.get("size"),
+            "quality": job_params.get("quality"),
+            "cost_estimate": {
+                "usd": updated_job.estimated_cost_usd,
+            },
+            "actual_cost_usd": updated_job.actual_cost_usd,
+            "retry_count": 0,
+            "error": None,
+        }
+        self.openai_job_storage.persist_job_files(
+            session_id=session_id,
+            job_id=updated_job.id,
+            created_at=updated_job.created_at,
+            metadata=metadata,
+            input_bytes=input_bytes,
+            mask_bytes=mask_bytes,
+            output_bytes=image_bytes,
+            error_message=None,
+        )
         return updated_job, image_record.id
 
     def _build_openai_image_response(
@@ -1091,12 +1188,32 @@ class Api:
         return updated_job
 
     async def _start_job_runner(self) -> None:
+        logger.info("FastAPI startup: _start_job_runner called")
+
+        # Cleanup orphaned jobs from previous server runs
+        cleanup_result = self.history_storage.cleanup_orphaned_jobs()
+        total_cleaned = cleanup_result["running_to_failed"] + cleanup_result["queued_to_cancelled"]
+        if total_cleaned > 0:
+            logger.warning(
+                f"Cleaned up orphaned jobs: {cleanup_result['running_to_failed']} running->failed, "
+                f"{cleanup_result['queued_to_cancelled']} queued->cancelled"
+            )
+
         if self.job_runner:
+            logger.info("Starting JobRunner from FastAPI startup handler...")
             await self.job_runner.start()
+            logger.info("JobRunner started from FastAPI startup handler")
+        else:
+            logger.warning("JobRunner not configured, skipping startup")
 
     async def _stop_job_runner(self) -> None:
+        logger.info("FastAPI shutdown: _stop_job_runner called")
         if self.job_runner:
+            logger.info("Stopping JobRunner from FastAPI shutdown handler...")
             await self.job_runner.stop()
+            logger.info("JobRunner stopped from FastAPI shutdown handler")
+        else:
+            logger.debug("JobRunner not configured, nothing to stop")
 
     def _build_job_params(self, job_request: JobSubmitRequest) -> Dict[str, object]:
         params = job_request.model_dump(
@@ -1329,6 +1446,46 @@ class Api:
         """Get current budget status including daily/monthly/session usage."""
         session_id = self._get_session_id(request)
         return self.budget_guard.get_status(session_id)
+
+    def _resolve_budget_limits(self) -> BudgetLimits:
+        overrides = self.budget_storage.get_budget_limits()
+        if overrides:
+            return BudgetLimits(
+                daily_cap_usd=overrides.get("daily_cap_usd", self.budget_config.daily_cap_usd),
+                monthly_cap_usd=overrides.get(
+                    "monthly_cap_usd", self.budget_config.monthly_cap_usd
+                ),
+                session_cap_usd=overrides.get(
+                    "session_cap_usd", self.budget_config.session_cap_usd
+                ),
+            )
+        return BudgetLimits(
+            daily_cap_usd=self.budget_config.daily_cap_usd,
+            monthly_cap_usd=self.budget_config.monthly_cap_usd,
+            session_cap_usd=self.budget_config.session_cap_usd,
+        )
+
+    def api_budget_limits(self, request: Request) -> BudgetLimits:
+        """Return current budget limit overrides."""
+        return self._resolve_budget_limits()
+
+    def api_update_budget_limits(self, req: BudgetLimitsUpdate) -> BudgetLimits:
+        """Update persisted budget limits for the current instance."""
+        current = self._resolve_budget_limits()
+        updated = BudgetLimits(
+            daily_cap_usd=
+            current.daily_cap_usd if req.daily_cap_usd is None else req.daily_cap_usd,
+            monthly_cap_usd=
+            current.monthly_cap_usd if req.monthly_cap_usd is None else req.monthly_cap_usd,
+            session_cap_usd=
+            current.session_cap_usd if req.session_cap_usd is None else req.session_cap_usd,
+        )
+        self.budget_storage.set_budget_limits(
+            updated.daily_cap_usd,
+            updated.monthly_cap_usd,
+            updated.session_cap_usd,
+        )
+        return updated
 
     def api_budget_estimate(self, req: CostEstimateRequest) -> CostEstimateResponse:
         """Estimate cost for an operation before executing it."""

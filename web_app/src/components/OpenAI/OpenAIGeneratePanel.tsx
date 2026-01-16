@@ -20,7 +20,7 @@
  */
 
 import { useState } from "react"
-import { Loader2, ImagePlus, History } from "lucide-react"
+import { Loader2, ImagePlus, History, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { useStore } from "@/lib/states"
@@ -40,16 +40,26 @@ export function OpenAIGeneratePanel() {
     requestGeneration,
     budgetStatus,
     generationHistory,
+    selectedGenerateModel,
+    currentJobId,
+    cancelOpenAIJob,
   ] = useStore((state) => [
     state.openAIState.openAIRefinedPrompt,
     state.openAIState.isOpenAIGenerating,
     state.requestOpenAIGeneration,
     state.openAIState.budgetStatus,
     state.openAIState.generationHistory,
+    state.openAIState.selectedGenerateModel,
+    state.openAIState.currentJobId,
+    state.cancelOpenAIJob,
   ])
 
   const isBudgetBlocked = budgetStatus?.status === "blocked"
-  const canGenerate = refinedPrompt.trim() && !isGenerating && !isBudgetBlocked
+  const canGenerate =
+    refinedPrompt.trim() &&
+    selectedGenerateModel &&
+    !isGenerating &&
+    !isBudgetBlocked
 
   // Show history view if toggled
   if (showHistory) {
@@ -99,24 +109,38 @@ export function OpenAIGeneratePanel() {
       )}
 
       {/* Generate Button */}
-      <Button
-        onClick={() => requestGeneration()}
-        disabled={!canGenerate}
-        size="lg"
-        className="w-full gap-2"
-      >
-        {isGenerating ? (
-          <>
+      {isGenerating ? (
+        <div className="flex gap-2">
+          <Button disabled size="lg" className="flex-1 gap-2">
             <Loader2 className="h-5 w-5 animate-spin" />
             Generating...
-          </>
-        ) : (
-          <>
-            <ImagePlus className="h-5 w-5" />
-            Generate Image
-          </>
-        )}
-      </Button>
+          </Button>
+          <Button
+            variant="destructive"
+            size="lg"
+            onClick={() => currentJobId && cancelOpenAIJob(currentJobId)}
+            title="Cancel generation"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+      ) : (
+        <Button
+          onClick={() => requestGeneration()}
+          disabled={!canGenerate}
+          size="lg"
+          className="w-full gap-2"
+        >
+          <ImagePlus className="h-5 w-5" />
+          Generate Image
+        </Button>
+      )}
+
+      {!selectedGenerateModel && (
+        <p className="text-sm text-center text-muted-foreground">
+          No OpenAI generation models available.
+        </p>
+      )}
 
       {/* Budget blocked message */}
       {isBudgetBlocked && (

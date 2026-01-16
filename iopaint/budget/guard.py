@@ -41,6 +41,31 @@ class BudgetGuard:
         self.config = config
         self.storage = storage
 
+    def _resolve_caps(self) -> tuple[float, float, float]:
+        overrides = self.storage.get_budget_limits()
+        if not overrides:
+            return (
+                self.config.daily_cap_usd,
+                self.config.monthly_cap_usd,
+                self.config.session_cap_usd,
+            )
+        daily = (
+            overrides["daily_cap_usd"]
+            if overrides["daily_cap_usd"] is not None
+            else self.config.daily_cap_usd
+        )
+        monthly = (
+            overrides["monthly_cap_usd"]
+            if overrides["monthly_cap_usd"] is not None
+            else self.config.monthly_cap_usd
+        )
+        session = (
+            overrides["session_cap_usd"]
+            if overrides["session_cap_usd"] is not None
+            else self.config.session_cap_usd
+        )
+        return daily, monthly, session
+
     def check_budget(
         self,
         operation: str,
@@ -60,43 +85,45 @@ class BudgetGuard:
         Returns:
             BudgetCheckResult with allowed status and details.
         """
+        daily_cap, monthly_cap, session_cap = self._resolve_caps()
+
         # Check session cap first (most granular)
-        if self.config.session_cap_usd > 0:
+        if session_cap > 0:
             session_spent = self.storage.get_session_spend(session_id)
-            if session_spent + estimated_cost > self.config.session_cap_usd:
+            if session_spent + estimated_cost > session_cap:
                 return BudgetCheckResult(
                     allowed=False,
-                    reason=f"Session budget exceeded: ${session_spent:.2f} spent + ${estimated_cost:.2f} > ${self.config.session_cap_usd:.2f} cap",
+                    reason=f"Session budget exceeded: ${session_spent:.2f} spent + ${estimated_cost:.2f} > ${session_cap:.2f} cap",
                     cap_type="session",
                     spent_usd=session_spent,
-                    cap_usd=self.config.session_cap_usd,
-                    remaining_usd=max(0, self.config.session_cap_usd - session_spent),
+                    cap_usd=session_cap,
+                    remaining_usd=max(0, session_cap - session_spent),
                 )
 
         # Check daily cap
-        if self.config.daily_cap_usd > 0:
+        if daily_cap > 0:
             daily_spent = self.storage.get_daily_spend()
-            if daily_spent + estimated_cost > self.config.daily_cap_usd:
+            if daily_spent + estimated_cost > daily_cap:
                 return BudgetCheckResult(
                     allowed=False,
-                    reason=f"Daily budget exceeded: ${daily_spent:.2f} spent + ${estimated_cost:.2f} > ${self.config.daily_cap_usd:.2f} cap",
+                    reason=f"Daily budget exceeded: ${daily_spent:.2f} spent + ${estimated_cost:.2f} > ${daily_cap:.2f} cap",
                     cap_type="daily",
                     spent_usd=daily_spent,
-                    cap_usd=self.config.daily_cap_usd,
-                    remaining_usd=max(0, self.config.daily_cap_usd - daily_spent),
+                    cap_usd=daily_cap,
+                    remaining_usd=max(0, daily_cap - daily_spent),
                 )
 
         # Check monthly cap
-        if self.config.monthly_cap_usd > 0:
+        if monthly_cap > 0:
             monthly_spent = self.storage.get_monthly_spend()
-            if monthly_spent + estimated_cost > self.config.monthly_cap_usd:
+            if monthly_spent + estimated_cost > monthly_cap:
                 return BudgetCheckResult(
                     allowed=False,
-                    reason=f"Monthly budget exceeded: ${monthly_spent:.2f} spent + ${estimated_cost:.2f} > ${self.config.monthly_cap_usd:.2f} cap",
+                    reason=f"Monthly budget exceeded: ${monthly_spent:.2f} spent + ${estimated_cost:.2f} > ${monthly_cap:.2f} cap",
                     cap_type="monthly",
                     spent_usd=monthly_spent,
-                    cap_usd=self.config.monthly_cap_usd,
-                    remaining_usd=max(0, self.config.monthly_cap_usd - monthly_spent),
+                    cap_usd=monthly_cap,
+                    remaining_usd=max(0, monthly_cap - monthly_spent),
                 )
 
         # All checks passed
@@ -188,14 +215,15 @@ class BudgetGuard:
         daily_spent = self.storage.get_daily_spend()
         monthly_spent = self.storage.get_monthly_spend()
         session_spent = self.storage.get_session_spend(session_id)
+        daily_cap, monthly_cap, session_cap = self._resolve_caps()
 
         return BudgetStatusResponse.from_usage(
             daily_spent=daily_spent,
-            daily_cap=self.config.daily_cap_usd,
+            daily_cap=daily_cap,
             monthly_spent=monthly_spent,
-            monthly_cap=self.config.monthly_cap_usd,
+            monthly_cap=monthly_cap,
             session_spent=session_spent,
-            session_cap=self.config.session_cap_usd,
+            session_cap=session_cap,
         )
 
     def ensure_allowed_or_raise(
