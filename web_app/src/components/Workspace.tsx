@@ -10,10 +10,11 @@ import DiffusionProgress from "./DiffusionProgress"
 import FileSelect from "./FileSelect"
 
 const Workspace = () => {
-  const [file, updateSettings] = useStore((state) => [
-    state.file,
-    state.updateSettings,
-  ])
+const [file, updateSettings, setFile] = useStore((state) => [
+  state.file,
+  state.updateSettings,
+  state.setFile,
+])
 
   useEffect(() => {
     const fetchCurrentModel = async () => {
@@ -33,7 +34,7 @@ const Workspace = () => {
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <FileSelect
                 onSelection={(f) => {
-                  // File selection handled via store
+                  setFile(f)
                 }}
               />
             </div>

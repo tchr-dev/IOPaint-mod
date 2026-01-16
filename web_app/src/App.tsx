@@ -17,12 +17,11 @@ const SUPPORTED_FILE_TYPE = [
   "image/tiff",
 ]
 function Home() {
-  const [file, updateAppState, setServerConfig, setFile] = useStore((state) => [
-    state.file,
-    state.updateAppState,
-    state.setServerConfig,
-    state.setFile,
-  ])
+const [updateAppState, setServerConfig, setFile] = useStore((state) => [
+  state.updateAppState,
+  state.setServerConfig,
+  state.setFile,
+])
 
   const userInputImage = useInputImage()
 
