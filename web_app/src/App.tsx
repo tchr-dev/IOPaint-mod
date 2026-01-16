@@ -5,7 +5,6 @@ import { keepGUIAlive } from "@/lib/utils"
 import { getServerConfig } from "@/lib/api"
 import Header from "@/components/Header"
 import Workspace from "@/components/Workspace"
-import FileSelect from "@/components/FileSelect"
 import { Toaster } from "./components/ui/toaster"
 import { useStore } from "./lib/states"
 import { useWindowSize } from "react-use"
@@ -151,15 +150,6 @@ function Home() {
       <Toaster />
       <Header />
       <Workspace />
-      {!file ? (
-        <FileSelect
-          onSelection={async (f) => {
-            setFile(f)
-          }}
-        />
-      ) : (
-        <></>
-      )}
     </main>
   )
 }

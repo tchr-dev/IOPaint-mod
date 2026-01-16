@@ -33,38 +33,34 @@ export default function FileSelect(props: FileSelectProps) {
   }
 
   return (
-    <div className="absolute flex w-screen h-screen justify-center items-center pointer-events-none pr-[143px]">
-      <label
-        htmlFor={uploadElemId}
-        className="grid bg-background border-[2px] border-[dashed] rounded-lg w-full max-w-[600px] mx-8 hover:bg-primary hover:text-primary-foreground pointer-events-auto"
-      >
-        <div
-          className="grid p-16 w-full h-full"
-          onDragOver={(ev) => {
-            ev.stopPropagation()
-            ev.preventDefault()
+    <label
+      htmlFor={uploadElemId}
+      className="grid bg-background border-[2px] border-[dashed] rounded-lg w-full max-w-[600px] mx-8 hover:bg-primary hover:text-primary-foreground pointer-events-auto cursor-pointer"
+      onDragOver={(ev) => {
+        ev.stopPropagation()
+        ev.preventDefault()
+      }}
+    >
+      <div className="grid p-16 w-full h-full">
+        <input
+          className="hidden"
+          id={uploadElemId}
+          name={uploadElemId}
+          type="file"
+          onChange={(ev) => {
+            const file = ev.currentTarget.files?.[0]
+            if (file) {
+              onFileSelected(file)
+            }
           }}
-        >
-          <input
-            className="hidden"
-            id={uploadElemId}
-            name={uploadElemId}
-            type="file"
-            onChange={(ev) => {
-              const file = ev.currentTarget.files?.[0]
-              if (file) {
-                onFileSelected(file)
-              }
-            }}
-            accept="image/png, image/jpeg"
-          />
-          <p className="text-center">
-            {resolution === "desktop"
-              ? "Click here or drag an image file"
-              : "Tap here to load your picture"}
-          </p>
-        </div>
-      </label>
-    </div>
+          accept="image/png, image/jpeg"
+        />
+        <p className="text-center">
+          {resolution === "desktop"
+            ? "Click here or drag an image file"
+            : "Tap here to load your picture"}
+        </p>
+      </div>
+    </label>
   )
 }
