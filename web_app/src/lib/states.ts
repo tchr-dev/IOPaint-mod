@@ -577,6 +577,7 @@ type OpenAIAction = {
   removeFromHistory: (id: string) => void
   clearHistory: () => void
   rerunJob: (jobId: string) => Promise<void>
+  restoreFromJob: (jobId: string) => void
   copyJobPrompt: (jobId: string) => void
   setHistoryFilter: (filter: "all" | "succeeded" | "failed") => void
   syncHistoryWithBackend: () => Promise<void>
@@ -2231,6 +2232,23 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
 
         // Trigger generation
         await get().requestOpenAIGeneration()
+      },
+
+      restoreFromJob: (jobId: string) => {
+        const job = get().openAIState.generationHistory.find((j) => j.id === jobId)
+        if (!job) return
+
+        set((state) => {
+          state.openAIState.openAIIntent = job.intent
+          state.openAIState.openAIRefinedPrompt = job.refinedPrompt
+          state.openAIState.openAINegativePrompt = job.negativePrompt
+          state.openAIState.selectedPreset = job.preset
+          if (job.preset === GenerationPreset.CUSTOM) {
+            state.openAIState.customPresetConfig = { ...job.params }
+          }
+        })
+
+        get().updateCostEstimate()
       },
 
       copyJobPrompt: (jobId: string) => {

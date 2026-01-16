@@ -30,6 +30,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { ToastAction } from "@/components/ui/toast"
+import { useToast } from "@/components/ui/use-toast"
 import { useStore } from "@/lib/states"
 import { GenerationJob, HistorySnapshot } from "@/lib/types"
 import { HistoryItem } from "./HistoryItem"
@@ -50,6 +52,8 @@ export function GenerationHistory({ onClose }: GenerationHistoryProps) {
     syncHistorySnapshots,
     deleteHistorySnapshot,
     clearHistorySnapshots,
+    restoreFromJob,
+    removeFromHistory,
   ] = useStore((state) => [
     state.openAIState.generationHistory,
     state.openAIState.historyFilter,
@@ -61,7 +65,11 @@ export function GenerationHistory({ onClose }: GenerationHistoryProps) {
     state.syncHistorySnapshots,
     state.deleteHistorySnapshot,
     state.clearHistorySnapshots,
+    state.restoreFromJob,
+    state.removeFromHistory,
   ])
+
+  const { toast } = useToast()
 
   useEffect(() => {
     syncHistorySnapshots()
@@ -103,6 +111,30 @@ export function GenerationHistory({ onClose }: GenerationHistoryProps) {
     } catch (error) {
       console.error("Failed to open image in editor:", error)
     }
+  }
+
+  const handleRestoreFromJob = async (job: GenerationJob) => {
+    restoreFromJob(job.id)
+
+    if (job.status === "succeeded" && job.resultImageDataUrl) {
+      await handleOpenInEditor(job)
+      return
+    }
+
+    toast({
+      variant: "warning",
+      title: "Image unavailable",
+      description:
+        "Settings restored, but this history item doesn't have an image to reopen.",
+      action: (
+        <ToastAction
+          altText="Delete history item"
+          onClick={() => removeFromHistory(job.id)}
+        >
+          Delete history item
+        </ToastAction>
+      ),
+    })
   }
 
   return (
@@ -250,6 +282,7 @@ export function GenerationHistory({ onClose }: GenerationHistoryProps) {
                 key={job.id}
                 job={job}
                 onOpenInEditor={handleOpenInEditor}
+                onRestoreSettings={handleRestoreFromJob}
               />
             ))}
           </div>

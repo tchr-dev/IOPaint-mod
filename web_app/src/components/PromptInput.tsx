@@ -60,33 +60,31 @@ const PromptInput = () => {
   }
 
   return (
-    <div className="flex gap-4 relative w-full justify-center h-full">
-      <div className="absolute flex gap-4">
-        <Textarea
-          ref={ref}
-          placeholder="I want to repaint of..."
-          className={cn(
-            showScroll ? "focus:overflow-y-auto" : "overflow-y-hidden",
-            "min-h-[32px] h-[32px] overflow-x-hidden focus:h-[120px] overflow-y-hidden transition-[height] w-[500px] py-1 px-3 bg-background resize-none"
-          )}
-          style={{
-            scrollbarGutter: "stable",
-          }}
-          value={prompt}
-          onInput={handleOnInput}
-          onKeyUp={onKeyUp}
-          onTransitionEnd={toggleShowScroll}
-        />
-        <Button
-          size="sm"
-          onClick={handleRepaintClick}
-          disabled={isProcessing}
-          onMouseEnter={onMouseEnter}
-          onMouseLeave={onMouseLeave}
-        >
-          Paint
-        </Button>
-      </div>
+    <div className="flex gap-4 items-center">
+      <Textarea
+        ref={ref}
+        placeholder="I want to repaint of..."
+        className={cn(
+          showScroll ? "focus:overflow-y-auto" : "overflow-y-hidden",
+          "min-h-[32px] h-[32px] overflow-x-hidden focus:h-[120px] overflow-y-hidden transition-[height] w-[500px] py-1 px-3 bg-background resize-none"
+        )}
+        style={{
+          scrollbarGutter: "stable",
+        }}
+        value={prompt}
+        onInput={handleOnInput}
+        onKeyUp={onKeyUp}
+        onTransitionEnd={toggleShowScroll}
+      />
+      <Button
+        size="sm"
+        onClick={handleRepaintClick}
+        disabled={isProcessing}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      >
+        Paint
+      </Button>
     </div>
   )
 }

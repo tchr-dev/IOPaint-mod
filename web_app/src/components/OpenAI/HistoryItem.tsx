@@ -42,9 +42,14 @@ import { GenerationJob } from "@/lib/types"
 interface HistoryItemProps {
   job: GenerationJob
   onOpenInEditor?: (job: GenerationJob) => void
+  onRestoreSettings?: (job: GenerationJob) => void
 }
 
-export function HistoryItem({ job, onOpenInEditor }: HistoryItemProps) {
+export function HistoryItem({
+  job,
+  onOpenInEditor,
+  onRestoreSettings,
+}: HistoryItemProps) {
   const [copyJobPrompt, rerunJob, removeFromHistory, cancelOpenAIJob] = useStore(
     (state) => [
       state.copyJobPrompt,
@@ -70,7 +75,10 @@ export function HistoryItem({ job, onOpenInEditor }: HistoryItemProps) {
   })
 
   return (
-    <div className="flex gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+    <div
+      className="flex gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer"
+      onClick={() => onRestoreSettings?.(job)}
+    >
       {/* Thumbnail */}
       <div className="flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted">
         {job.thumbnailDataUrl ? (
@@ -131,7 +139,10 @@ export function HistoryItem({ job, onOpenInEditor }: HistoryItemProps) {
       {/* Actions */}
       <div className="flex-shrink-0">
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+          <DropdownMenuTrigger
+            asChild
+            onClick={(event) => event.stopPropagation()}
+          >
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <MoreHorizontal className="h-4 w-4" />
             </Button>

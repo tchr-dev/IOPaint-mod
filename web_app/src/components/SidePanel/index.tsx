@@ -84,12 +84,12 @@ const SidePanel = () => {
           <ChevronLeft strokeWidth={1} />
         </Button>
       </SheetTrigger>
-      <SheetContent
-        side="right"
-        className="min-w-[286px] max-w-full mt-[60px] outline-none pl-3 pr-1"
-        onOpenAutoFocus={(event) => event.preventDefault()}
-        onPointerDownOutside={(event) => event.preventDefault()}
-      >
+        <SheetContent
+          side="right"
+          className="min-w-[286px] max-w-full mt-[60px] outline-none px-3"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+        >
         <SheetHeader>
           <RowContainer>
             <div className="overflow-hidden mr-8">

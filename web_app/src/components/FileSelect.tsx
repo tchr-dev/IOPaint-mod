@@ -33,7 +33,7 @@ export default function FileSelect(props: FileSelectProps) {
   }
 
   return (
-    <div className="absolute flex w-screen h-screen justify-center items-center pointer-events-none">
+    <div className="absolute flex w-screen h-screen justify-center items-center pointer-events-none pr-[143px]">
       <label
         htmlFor={uploadElemId}
         className="grid bg-background border-[2px] border-[dashed] rounded-lg w-full max-w-[600px] mx-8 hover:bg-primary hover:text-primary-foreground pointer-events-auto"
