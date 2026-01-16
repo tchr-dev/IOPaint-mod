@@ -56,11 +56,15 @@ const SidePanel = () => {
 
   const getPanelTitle = () => {
     if (isOpenAIMode) {
-      return isOpenAIEditMode ? "OpenAI Edit" : "OpenAI Generation"
+      return isOpenAIEditMode ? "Cloud Edit" : "Cloud Generation"
     }
-    return settings.model.name.split("/")[
-      settings.model.name.split("/").length - 1
-    ]
+    const modelName = settings.model.name
+    // Show friendly name for openai-compat model
+    if (modelName === "openai-compat") {
+      return "Model Settings"
+    }
+    // For other models, show last segment of path
+    return modelName.split("/")[modelName.split("/").length - 1]
   }
 
   return (

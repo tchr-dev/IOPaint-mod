@@ -12,7 +12,6 @@ import { getMediaBlob, getMediaFile } from "@/lib/api"
 import { useStore } from "@/lib/states"
 import SettingsDialog from "./Settings"
 import { cn, fileToImage } from "@/lib/utils"
-import Coffee from "./Coffee"
 import { useToast } from "./ui/use-toast"
 import { Switch } from "./ui/switch"
 import { Label } from "./ui/label"
@@ -194,12 +193,9 @@ const Header = () => {
         ) : (
           <></>
         )}
-      </div>
 
-      {/* Mode Toggle + Prompt Input */}
-      <div className="flex items-center gap-4">
-        {/* OpenAI Mode Toggle */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border">
+        {/* Local/Cloud Mode Toggle */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border ml-2">
           <Label
             htmlFor="openai-mode"
             className={cn(
@@ -224,16 +220,17 @@ const Header = () => {
             )}
           >
             <Sparkles className="h-3 w-3" />
-            OpenAI
+            Cloud
           </Label>
         </div>
+      </div>
 
-        {/* Show local prompt input only when NOT in OpenAI mode and model needs it */}
+      {/* Centered Prompt Input */}
+      <div className="flex-1 flex justify-center">
         {!isOpenAIMode && model.need_prompt ? <PromptInput /> : <></>}
       </div>
 
       <div className="flex gap-1">
-        <Coffee />
         <Shortcuts />
         {serverConfig.disableModelSwitch ? <></> : <SettingsDialog />}
       </div>

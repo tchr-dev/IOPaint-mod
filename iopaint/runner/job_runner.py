@@ -84,8 +84,12 @@ class JobRunner:
         if not self._stop_event:
             return
         self._stop_event.set()
-        if self._worker_task:
-            await self._worker_task
+        if self._worker_task and not self._worker_task.done():
+            self._worker_task.cancel()
+            try:
+                await self._worker_task
+            except asyncio.CancelledError:
+                pass
         logger.info("JobRunner stopped")
 
     async def submit(self, job: QueuedJob) -> None:
@@ -99,19 +103,23 @@ class JobRunner:
     async def _run(self) -> None:
         logger.info("JobRunner worker loop started")
         iteration = 0
-        while True:
-            if self._stop_event and self._stop_event.is_set():
-                logger.info("Stop event received, exiting worker loop")
-                break
-            iteration += 1
-            logger.debug(f"Worker loop iteration {iteration}, waiting for job (queue_size={self.queue.qsize()})")
-            job = await self.queue.get()
-            logger.info(f"Dequeued job {job.job_id} (queue_size={self.queue.qsize()}, tool={job.request.tool})")
-            try:
-                await self._process_job(job)
-            finally:
-                self.queue.task_done()
-                logger.debug(f"Job {job.job_id} task_done signaled")
+        try:
+            while True:
+                if self._stop_event and self._stop_event.is_set():
+                    logger.info("Stop event received, exiting worker loop")
+                    break
+                iteration += 1
+                logger.debug(f"Worker loop iteration {iteration}, waiting for job (queue_size={self.queue.qsize()})")
+                job = await self.queue.get()
+                logger.info(f"Dequeued job {job.job_id} (queue_size={self.queue.qsize()}, tool={job.request.tool})")
+                try:
+                    await self._process_job(job)
+                finally:
+                    self.queue.task_done()
+                    logger.debug(f"Job {job.job_id} task_done signaled")
+        except asyncio.CancelledError:
+            logger.info("JobRunner worker loop cancelled")
+            raise
         logger.info("JobRunner worker loop exited")
 
     async def _process_job(self, job: QueuedJob) -> None:
