@@ -14,6 +14,8 @@ export const API_ENDPOINT = import.meta.env.DEV
   ? import.meta.env.VITE_BACKEND + "/api/v1"
   : "/api/v1"
 
+export const inpaintController = new AbortController()
+
 // Session ID management for budget tracking
 const SESSION_STORAGE_KEY = "iopaint_session_id"
 
@@ -65,7 +67,8 @@ export default async function inpaint(
   croperRect: Rect,
   extenderState: Rect,
   mask: File | Blob,
-  paintByExampleImage: File | null = null
+  paintByExampleImage: File | null = null,
+  signal?: AbortSignal
 ) {
   const imageBase64 = await convertToBase64(imageFile)
   const maskBase64 = await convertToBase64(mask)
@@ -79,6 +82,7 @@ export default async function inpaint(
       "Content-Type": "application/json",
       "X-Session-Id": getOrCreateSessionId(),
     },
+    signal,
     body: JSON.stringify({
       image: imageBase64,
       mask: maskBase64,

@@ -4,6 +4,7 @@ import { useStore } from "@/lib/states"
 import { useClickAway, useToggle } from "react-use"
 import { Textarea } from "./ui/textarea"
 import { cn } from "@/lib/utils"
+import { X } from "lucide-react"
 
 const PromptInput = () => {
   const [
@@ -11,6 +12,8 @@ const PromptInput = () => {
     prompt,
     updateSettings,
     runInpainting,
+    cancelInpainting,
+    isInpainting,
     showPrevMask,
     hidePrevMask,
   ] = useStore((state) => [
@@ -18,6 +21,8 @@ const PromptInput = () => {
     state.settings.prompt,
     state.updateSettings,
     state.runInpainting,
+    state.cancelInpainting,
+    state.isInpainting,
     state.showPrevMask,
     state.hidePrevMask,
   ])
@@ -76,15 +81,34 @@ const PromptInput = () => {
         onKeyUp={onKeyUp}
         onTransitionEnd={toggleShowScroll}
       />
-      <Button
-        size="sm"
-        onClick={handleRepaintClick}
-        disabled={isProcessing}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-      >
-        Paint
-      </Button>
+      {isInpainting ? (
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            disabled
+          >
+            Painting...
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={cancelInpainting}
+            title="Cancel generation"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : (
+        <Button
+          size="sm"
+          onClick={handleRepaintClick}
+          disabled={isProcessing}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
+        >
+          Paint
+        </Button>
+      )}
     </div>
   )
 }

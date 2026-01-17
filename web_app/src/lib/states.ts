@@ -55,7 +55,7 @@ import {
   resolveStoredImages,
   srcToFile,
 } from "./utils"
-import inpaint, { getGenInfo, postAdjustMask, runPlugin } from "./api"
+import inpaint, { getGenInfo, postAdjustMask, runPlugin, inpaintController } from "./api"
 import {
   fetchOpenAICapabilities,
   refinePrompt as apiRefinePrompt,
@@ -675,6 +675,7 @@ type AppAction = {
   showPromptInput: () => boolean
 
   runInpainting: () => Promise<void>
+  cancelInpainting: () => void
   showPrevMask: () => Promise<void>
   hidePrevMask: () => void
   runRenderablePlugin: (
@@ -707,6 +708,7 @@ const defaultValues: AppState = {
   imageHeight: 0,
   imageWidth: 0,
   isInpainting: false,
+  rendersCountBeforeInpaint: 0,
   isPluginRunning: false,
   isAdjustingMask: false,
   disableShortCuts: false,
@@ -948,6 +950,8 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           extraMasks,
         } = get().editorState
 
+        const rendersCountBeforeInpaint = renders.length
+
         const useLastLineGroup =
           curLineGroup.length === 0 &&
           extraMasks.length === 0 &&
@@ -1020,6 +1024,10 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
           })
         }
 
+        set((state) => {
+          state.rendersCountBeforeInpaint = rendersCountBeforeInpaint
+        })
+
         try {
           const res = await inpaint(
             targetFile,
@@ -1027,7 +1035,8 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
             cropperState,
             extenderState,
             dataURItoBlob(maskCanvas.toDataURL()),
-            paintByExampleFile
+            paintByExampleFile,
+            inpaintController.signal
           )
 
           const { blob, seed } = res
@@ -1058,6 +1067,13 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         set((state) => {
           state.isInpainting = false
           state.editorState.temporaryMasks = []
+        })
+      },
+
+      cancelInpainting: () => {
+        inpaintController.abort()
+        set((state) => {
+          state.isInpainting = false
         })
       },
 
@@ -1473,12 +1489,23 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
                 state.settings.negativePrompt = res.negative_prompt
               })
             }
-          } catch (e: any) {
+        } catch (e: any) {
+          if (e.name === "AbortError") {
+            const { rendersCountBeforeInpaint } = get()
+            const { renders } = get().editorState
+            if (renders.length > rendersCountBeforeInpaint) {
+              get().undo()
+            }
+            toast({
+              description: "Generation cancelled",
+            })
+          } else {
             toast({
               variant: "destructive",
               description: e.message ? e.message : e.toString(),
             })
           }
+        }
         }
         set((state) => {
           state.file = file

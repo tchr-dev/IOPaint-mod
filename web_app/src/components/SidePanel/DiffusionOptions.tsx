@@ -23,7 +23,7 @@ import {
   POWERPAINT,
 } from "@/lib/const"
 import { RowContainer, LabelTitle } from "./LabelTitle"
-import { Upload } from "lucide-react"
+import { Upload, X } from "lucide-react"
 import { useClickAway } from "react-use"
 
 const ExtenderButton = ({
@@ -54,6 +54,8 @@ const DiffusionOptions = () => {
     isProcessing,
     updateSettings,
     runInpainting,
+    cancelInpainting,
+    isInpainting,
     updateAppState,
     updateExtenderByBuiltIn,
     updateExtenderDirection,
@@ -70,6 +72,8 @@ const DiffusionOptions = () => {
     state.getIsProcessing(),
     state.updateSettings,
     state.runInpainting,
+    state.cancelInpainting,
+    state.isInpainting,
     state.updateAppState,
     state.updateExtenderByBuiltIn,
     state.updateExtenderDirection,
@@ -371,16 +375,35 @@ const DiffusionOptions = () => {
         ) : (
           <></>
         )}
-        <Button
-          variant="default"
-          className="w-full"
-          disabled={isProcessing || !isExampleImageLoaded}
-          onClick={() => {
-            runInpainting()
-          }}
-        >
-          Paint
-        </Button>
+        {isInpainting ? (
+          <div className="flex gap-2">
+            <Button
+              variant="default"
+              className="flex-1"
+              disabled
+            >
+              Painting...
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={cancelInpainting}
+              title="Cancel generation"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="default"
+            className="w-full"
+            disabled={isProcessing || !isExampleImageLoaded}
+            onClick={() => {
+              runInpainting()
+            }}
+          >
+            Paint
+          </Button>
+        )}
       </div>
     )
   }
