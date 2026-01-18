@@ -392,7 +392,7 @@ def switch_mps_device(model_name: str, device: torch.device) -> torch.device:
 
 **Priority**: 🟢 P3  
 **Effort**: Medium  
-**Status**: Pending
+**Status**: Complete
 
 #### Problem Details
 Location: `iopaint/download.py` multiple locations

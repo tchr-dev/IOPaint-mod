@@ -21,6 +21,10 @@ from iopaint.model.original_sd_configs import get_config_files
 # Cache versioning for invalidation on format changes
 CACHE_VERSION = 1
 
+# Import custom exceptions for unified error handling
+# Note: These are currently defined but not actively used to avoid breaking changes
+# They can be used in future refactoring for more structured error handling
+
 # OpenAI-compatible API constants
 OPENAI_COMPAT_NAME = "openai-compat"
 
@@ -80,10 +84,13 @@ def get_sd_model_type(model_abs_path: str) -> Optional[ModelType]:
         if "[320, 4, 3, 3]" in str(e):
             return ModelType.DIFFUSERS_SD
         else:
-            logger.info(f"Ignore non sd file: {model_abs_path}")
+            logger.debug(f"Unsupported SD model format for {model_abs_path}: {e}")
             return None
+    except (OSError, PermissionError) as e:
+        logger.warning(f"Cannot access model file {model_abs_path}: {e}")
+        return None
     except Exception as e:
-        logger.error(f"Failed to load {model_abs_path}: {e}")
+        logger.error(f"Unexpected error loading SD model {model_abs_path}: {e}")
         return None
 
 
@@ -114,10 +121,13 @@ def get_sdxl_model_type(model_abs_path: str) -> Optional[ModelType]:
         if "[320, 4, 3, 3]" in str(e):
             return ModelType.DIFFUSERS_SDXL
         else:
-            logger.info(f"Ignore non sdxl file: {model_abs_path}")
+            logger.debug(f"Unsupported SDXL model format for {model_abs_path}: {e}")
             return None
+    except (OSError, PermissionError) as e:
+        logger.warning(f"Cannot access SDXL model file {model_abs_path}: {e}")
+        return None
     except Exception as e:
-        logger.error(f"Failed to load {model_abs_path}: {e}")
+        logger.error(f"Unexpected error loading SDXL model {model_abs_path}: {e}")
         return None
 
 
@@ -138,7 +148,7 @@ def scan_single_file_diffusion_models(cache_dir) -> List[ModelInfo]:
                     logger.info(f"Cache version mismatch (expected {CACHE_VERSION}, got {data.get('_version')}), clearing cache")
                     model_type_cache = {}
         except Exception as e:
-            logger.warning(f"Failed to read cache: {e}")
+            logger.warning(f"Cache read error: {e}")
             model_type_cache = {}
 
     res = []
@@ -184,7 +194,7 @@ def scan_single_file_diffusion_models(cache_dir) -> List[ModelInfo]:
                     logger.info(f"SDXL cache version mismatch (expected {CACHE_VERSION}, got {data.get('_version')}), clearing cache")
                     sdxl_model_type_cache = {}
         except Exception as e:
-            logger.warning(f"Failed to read SDXL cache: {e}")
+            logger.warning(f"SDXL cache read error: {e}")
             sdxl_model_type_cache = {}
 
     for it in stable_diffusion_xl_dir.glob("*.*"):
@@ -250,7 +260,8 @@ def scan_diffusers_models() -> List[ModelInfo]:
         try:
             with open(it, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except:
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to read model index {it}: {e}")
             continue
 
         _class_name = data["_class_name"]
@@ -300,9 +311,9 @@ def _scan_converted_diffusers_models(cache_dir) -> List[ModelInfo]:
         with open(it, "r", encoding="utf-8") as f:
             try:
                 data = json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError) as e:
                 logger.error(
-                    f"Failed to load {it}, please try revert from original model or fix model_index.json by hand."
+                    f"Failed to load {it}: {e}. Please try revert from original model or fix model_index.json by hand."
                 )
                 continue
 
