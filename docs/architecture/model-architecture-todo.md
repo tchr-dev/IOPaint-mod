@@ -465,7 +465,7 @@ def scan_diffusers_models() -> List[ModelInfo]:
 
 **Priority**: 🟢 P3  
 **Effort**: Low  
-**Status**: Pending
+**Status**: Complete
 
 #### Problem Details
 Location: `iopaint/download.py:120-126`

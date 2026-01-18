@@ -18,6 +18,9 @@ from iopaint.const import (
 )
 from iopaint.model.original_sd_configs import get_config_files
 
+# Cache versioning for invalidation on format changes
+CACHE_VERSION = 1
+
 # OpenAI-compatible API constants
 OPENAI_COMPAT_NAME = "openai-compat"
 
@@ -126,10 +129,17 @@ def scan_single_file_diffusion_models(cache_dir) -> List[ModelInfo]:
     if cache_file.exists():
         try:
             with open(cache_file, "r", encoding="utf-8") as f:
-                model_type_cache = json.load(f)
-                assert isinstance(model_type_cache, dict)
-        except:
-            pass
+                data = json.load(f)
+                assert isinstance(data, dict)
+                # Check cache version for invalidation
+                if data.get("_version") == CACHE_VERSION:
+                    model_type_cache = data.get("_models", {})
+                else:
+                    logger.info(f"Cache version mismatch (expected {CACHE_VERSION}, got {data.get('_version')}), clearing cache")
+                    model_type_cache = {}
+        except Exception as e:
+            logger.warning(f"Failed to read cache: {e}")
+            model_type_cache = {}
 
     res = []
     for it in stable_diffusion_dir.glob("*.*"):
@@ -153,7 +163,11 @@ def scan_single_file_diffusion_models(cache_dir) -> List[ModelInfo]:
         )
     if stable_diffusion_dir.exists():
         with open(cache_file, "w", encoding="utf-8") as fw:
-            json.dump(model_type_cache, fw, indent=2, ensure_ascii=False)
+            cache_data = {
+                "_version": CACHE_VERSION,
+                "_models": model_type_cache
+            }
+            json.dump(cache_data, fw, indent=2, ensure_ascii=False)
 
     stable_diffusion_xl_dir = cache_dir / "stable_diffusion_xl"
     sdxl_cache_file = stable_diffusion_xl_dir / "iopaint_cache.json"
@@ -161,10 +175,17 @@ def scan_single_file_diffusion_models(cache_dir) -> List[ModelInfo]:
     if sdxl_cache_file.exists():
         try:
             with open(sdxl_cache_file, "r", encoding="utf-8") as f:
-                sdxl_model_type_cache = json.load(f)
-                assert isinstance(sdxl_model_type_cache, dict)
-        except:
-            pass
+                data = json.load(f)
+                assert isinstance(data, dict)
+                # Check cache version for invalidation
+                if data.get("_version") == CACHE_VERSION:
+                    sdxl_model_type_cache = data.get("_models", {})
+                else:
+                    logger.info(f"SDXL cache version mismatch (expected {CACHE_VERSION}, got {data.get('_version')}), clearing cache")
+                    sdxl_model_type_cache = {}
+        except Exception as e:
+            logger.warning(f"Failed to read SDXL cache: {e}")
+            sdxl_model_type_cache = {}
 
     for it in stable_diffusion_xl_dir.glob("*.*"):
         if it.suffix not in [".safetensors", ".ckpt"]:
@@ -179,7 +200,11 @@ def scan_single_file_diffusion_models(cache_dir) -> List[ModelInfo]:
         sdxl_model_type_cache[it.name] = model_type
         if stable_diffusion_xl_dir.exists():
             with open(sdxl_cache_file, "w", encoding="utf-8") as fw:
-                json.dump(sdxl_model_type_cache, fw, indent=2, ensure_ascii=False)
+                cache_data = {
+                    "_version": CACHE_VERSION,
+                    "_models": sdxl_model_type_cache
+                }
+                json.dump(cache_data, fw, indent=2, ensure_ascii=False)
 
         res.append(
             ModelInfo(
