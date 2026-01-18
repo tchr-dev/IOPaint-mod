@@ -33,10 +33,15 @@ export const API_ENDPOINT = import.meta.env.DEV
   ? import.meta.env.VITE_BACKEND + "/api/v1"
   : "/api/v1"
 
-function formatError(error: AxiosError): string {
+interface ApiErrorResponse {
+  errors?: string
+  message?: string
+}
+
+function formatError(error: AxiosError<ApiErrorResponse>): string {
   if (error.response) {
     const status = error.response.status
-    const data = error.response.data as any
+    const data = error.response.data
     if (data?.errors) {
       return data.errors
     }
@@ -72,8 +77,8 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
-    const message = formatError(error)
+  (error: AxiosError<unknown>) => {
+    const message = formatError(error as AxiosError<ApiErrorResponse>)
 
     toast({
       variant: "destructive",
