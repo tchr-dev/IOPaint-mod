@@ -1,26 +1,34 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with
+code in this repository.
 
 ## Project Overview
 
-IOPaint is an image inpainting and outpainting tool powered by AI models. It provides both a web UI and CLI for removing objects, generating content in masked areas, and enhancing images using various AI models including LaMa, Stable Diffusion, SDXL, and specialized models like PowerPaint and AnyText. It also supports OpenAI-compatible APIs (gpt-image-1, dall-e-3) with budget safety controls.
+IOPaint is an image inpainting and outpainting tool powered by AI models. It
+provides both a web UI and CLI for removing objects, generating content in
+masked areas, and enhancing images using various AI models including LaMa,
+Stable Diffusion, SDXL, and specialized models like PowerPaint and AnyText. It
+also supports OpenAI-compatible APIs (gpt-image-1, dall-e-3) with budget safety
+controls.
 
 ## Development Commands
 
 ### Quick Start
+
 ```bash
 # Development mode: starts backend + Vite dev server
-./launch.sh dev --model lama --port 8080
+./run.sh dev --model lama --port 8080
 
 # Production mode: builds frontend, starts backend
-./launch.sh prod --model lama --port 8080
+./run.sh prod --model lama --port 8080
 
 # Interactive test runner (logs to ./logs/)
-./run_tests.sh
+./run.sh test
 ```
 
 ### Backend (Python)
+
 ```bash
 # Install dependencies (using uv - recommended)
 uv sync
@@ -45,6 +53,7 @@ pytest iopaint/tests/test_model.py -v -k "cpu"
 ```
 
 ### Frontend (React/TypeScript/Vite)
+
 ```bash
 cd web_app
 
@@ -65,6 +74,7 @@ npm run lint
 ```
 
 Configure backend URL in `web_app/.env.local`:
+
 ```
 VITE_BACKEND=http://127.0.0.1:8080
 ```
@@ -73,9 +83,11 @@ VITE_BACKEND=http://127.0.0.1:8080
 
 ### Core Components
 
-**Entry Point**: `main.py` → `iopaint/__init__.py:entry_point()` → `iopaint/cli.py:typer_app`
+**Entry Point**: `main.py` → `iopaint/__init__.py:entry_point()` →
+`iopaint/cli.py:typer_app`
 
 **CLI Commands** (`iopaint/cli.py`):
+
 - `start`: Launch web server with FastAPI backend
 - `run`: Batch process images from command line
 - `download`: Download models from HuggingFace
@@ -83,28 +95,35 @@ VITE_BACKEND=http://127.0.0.1:8080
 - `start-web-config`: Launch web-based configuration UI
 
 **API Server** (`iopaint/api.py`):
+
 - FastAPI application with Socket.IO for real-time progress updates
 - Serves static React frontend from `iopaint/web_app/`
 - Key endpoints: `/api/v1/inpaint`, `/api/v1/model`, `/api/v1/run_plugin_*`
 
 **Model System**:
-- `iopaint/model/base.py:InpaintModel`: Abstract base class all models inherit from
+
+- `iopaint/model/base.py:InpaintModel`: Abstract base class all models inherit
+  from
 - `iopaint/model/__init__.py`: Model registry mapping names to classes
-- `iopaint/model_manager.py:ModelManager`: Loads/switches models, handles ControlNet/BrushNet/PowerPaintV2
+- `iopaint/model_manager.py:ModelManager`: Loads/switches models, handles
+  ControlNet/BrushNet/PowerPaintV2
 
 **Model Types** (`iopaint/schema.py:ModelType`):
+
 - `INPAINT`: Traditional inpainting models (LaMa, MAT, ZITS, etc.)
 - `DIFFUSERS_SD`/`DIFFUSERS_SD_INPAINT`: Stable Diffusion 1.5
 - `DIFFUSERS_SDXL`/`DIFFUSERS_SDXL_INPAINT`: Stable Diffusion XL
 - `OPENAI_COMPAT`: OpenAI-compatible API models (gpt-image-1, dall-e-3, etc.)
 
 **OpenAI Compatibility** (`iopaint/openai_compat/`):
+
 - `client.py`: Wrapper around OpenAI's image API
 - `model_adapter.py`: Adapts OpenAI responses to IOPaint's internal format
 - `models.py`: Request/response Pydantic schemas
 - `config.py`: OpenAI-specific configuration
 
 **Budget Safety** (`iopaint/budget/`):
+
 - `guard.py:BudgetGuard`: Enforces daily/monthly/session spending caps
 - `rate_limiter.py`: Rate limiting between expensive operations
 - `cost_estimator.py`: Estimates costs before API calls
@@ -112,6 +131,7 @@ VITE_BACKEND=http://127.0.0.1:8080
 - `session.py`: Session-scoped budget tracking
 
 **Plugins** (`iopaint/plugins/`):
+
 - `InteractiveSeg`: SAM-based interactive segmentation for mask generation
 - `RemoveBG`: Background removal (briaai models)
 - `AnimeSeg`: Anime-specific segmentation
@@ -119,6 +139,7 @@ VITE_BACKEND=http://127.0.0.1:8080
 - `GFPGAN`/`RestoreFormer`: Face restoration
 
 **Frontend** (`web_app/src/`):
+
 - React 18 + TypeScript + Vite
 - State: Zustand + Recoil
 - UI: Radix UI primitives + Tailwind CSS
@@ -135,9 +156,11 @@ VITE_BACKEND=http://127.0.0.1:8080
 ### Adding New Models
 
 1. Create model class inheriting from `InpaintModel` in `iopaint/model/`
-2. Implement `init_model()`, `forward()`, `is_downloaded()`, and set `name` class attribute
+2. Implement `init_model()`, `forward()`, `is_downloaded()`, and set `name`
+   class attribute
 3. Register in `iopaint/model/__init__.py:models` dict
-4. Add to `AVAILABLE_MODELS` or `DIFFUSION_MODELS` in `iopaint/const.py` if applicable
+4. Add to `AVAILABLE_MODELS` or `DIFFUSION_MODELS` in `iopaint/const.py` if
+   applicable
 
 ### Configuration
 

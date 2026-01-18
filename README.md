@@ -19,23 +19,28 @@
   </a>
 </p>
 
-|Erase([LaMa](https://www.iopaint.com/models/erase/lama))|Replace Object([PowerPaint](https://www.iopaint.com/models/diffusion/powerpaint))|
-|-----|----|
-|<video src="https://github.com/Sanster/IOPaint/assets/3998421/264bc27c-0abd-4d8b-bb1e-0078ab264c4a">  | <video src="https://github.com/Sanster/IOPaint/assets/3998421/1de5c288-e0e1-4f32-926d-796df0655846">|
+| Erase([LaMa](https://www.iopaint.com/models/erase/lama))                                             | Replace Object([PowerPaint](https://www.iopaint.com/models/diffusion/powerpaint))                    |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| <video src="https://github.com/Sanster/IOPaint/assets/3998421/264bc27c-0abd-4d8b-bb1e-0078ab264c4a"> | <video src="https://github.com/Sanster/IOPaint/assets/3998421/1de5c288-e0e1-4f32-926d-796df0655846"> |
 
-|Draw Text([AnyText](https://www.iopaint.com/models/diffusion/anytext))|Out-painting([PowerPaint](https://www.iopaint.com/models/diffusion/powerpaint))|
-|---------|-----------|
-|<video src="https://github.com/Sanster/IOPaint/assets/3998421/ffd4eda4-f7d4-4693-93d8-d2cd5aa7c6d6">|<video src="https://github.com/Sanster/IOPaint/assets/3998421/c4af8aef-8c29-49e0-96eb-0aae2f768da2">|
-
+| Draw Text([AnyText](https://www.iopaint.com/models/diffusion/anytext))                               | Out-painting([PowerPaint](https://www.iopaint.com/models/diffusion/powerpaint))                      |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| <video src="https://github.com/Sanster/IOPaint/assets/3998421/ffd4eda4-f7d4-4693-93d8-d2cd5aa7c6d6"> | <video src="https://github.com/Sanster/IOPaint/assets/3998421/c4af8aef-8c29-49e0-96eb-0aae2f768da2"> |
 
 ## Features
 
-- Completely free and open-source, fully self-hosted, support CPU & GPU & Apple Silicon
+- Completely free and open-source, fully self-hosted, support CPU & GPU & Apple
+  Silicon
 - [Windows 1-Click Installer](https://www.iopaint.com/install/windows_1click_installer)
-- [OptiClean](https://apps.apple.com/ca/app/opticlean/id6452387177): macOS & iOS App for object erase
-- Supports various AI [models](https://www.iopaint.com/models) to perform erase, inpainting or outpainting task.
-  - [Erase models](https://www.iopaint.com/models#erase-models): These models can be used to remove unwanted object, defect, watermarks, people from image.
-  - Diffusion models: These models can be used to replace objects or perform outpainting. Some popular used models include:
+- [OptiClean](https://apps.apple.com/ca/app/opticlean/id6452387177): macOS & iOS
+  App for object erase
+- Supports various AI [models](https://www.iopaint.com/models) to perform erase,
+  inpainting or outpainting task.
+  - [Erase models](https://www.iopaint.com/models#erase-models): These models
+    can be used to remove unwanted object, defect, watermarks, people from
+    image.
+  - Diffusion models: These models can be used to replace objects or perform
+    outpainting. Some popular used models include:
     - [runwayml/stable-diffusion-inpainting](https://huggingface.co/runwayml/stable-diffusion-inpainting)
     - [diffusers/stable-diffusion-xl-1.0-inpainting-0.1](https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1)
     - [andregn/Realistic_Vision_V3.0-inpainting](https://huggingface.co/andregn/Realistic_Vision_V3.0-inpainting)
@@ -45,23 +50,28 @@
     - [PowerPaintV2](https://www.iopaint.com/models/diffusion/powerpaint_v2)
     - [Sanster/AnyText](https://huggingface.co/Sanster/AnyText)
     - [Fantasy-Studio/Paint-by-Example](https://huggingface.co/Fantasy-Studio/Paint-by-Example)
+    - [Kandinsky 2.2](https://www.iopaint.com/models/diffusion/kandinsky)
+    - [Instruct-Pix2Pix](https://www.iopaint.com/models/diffusion/instruct-pix2pix)
 
 - [Plugins](https://www.iopaint.com/plugins):
-  - [Segment Anything](https://iopaint.com/plugins/interactive_seg): Accurate and fast Interactive Object Segmentation
-  - [RemoveBG](https://iopaint.com/plugins/rembg): Remove image background or generate masks for foreground objects
-  - [Anime Segmentation](https://iopaint.com/plugins/anime_seg): Similar to RemoveBG, the model is specifically trained for anime images.
+  - [Segment Anything](https://iopaint.com/plugins/interactive_seg): Accurate
+    and fast Interactive Object Segmentation
+  - [RemoveBG](https://iopaint.com/plugins/rembg): Remove image background or
+    generate masks for foreground objects
+  - [Anime Segmentation](https://iopaint.com/plugins/anime_seg): Similar to
+    RemoveBG, the model is specifically trained for anime images.
   - [RealESRGAN](https://iopaint.com/plugins/RealESRGAN): Super Resolution
   - [GFPGAN](https://iopaint.com/plugins/GFPGAN): Face Restoration
   - [RestoreFormer](https://iopaint.com/plugins/RestoreFormer): Face Restoration
-- [FileManager](https://iopaint.com/file_manager): Browse your pictures conveniently and save them directly to the output directory.
-
+- [FileManager](https://iopaint.com/file_manager): Browse your pictures
+  conveniently and save them directly to the output directory.
 
 ## Quick Start
 
 ### Start webui
 
-IOPaint provides a convenient webui for using the latest AI models to edit your images.
-You can install and start IOPaint easily by running following command:
+IOPaint provides a convenient webui for using the latest AI models to edit your
+images. You can install and start IOPaint easily by running following command:
 
 ```bash
 # In order to use GPU, install cuda version of pytorch first.
@@ -73,17 +83,24 @@ pip3 install iopaint
 iopaint start --model=lama --device=cpu --port=8080
 ```
 
-That's it, you can start using IOPaint by visiting http://localhost:8080 in your web browser.
+That's it, you can start using IOPaint by visiting http://localhost:8080 in your
+web browser.
 
-All models will be downloaded automatically at startup. If you want to change the download directory, you can add `--model-dir`. More documentation can be found [here](https://www.iopaint.com/install/download_model)
+All models will be downloaded automatically at startup. If you want to change
+the download directory, you can add `--model-dir`. More documentation can be
+found [here](https://www.iopaint.com/install/download_model)
 
-You can see other supported models at [here](https://www.iopaint.com/models) and how to use local sd ckpt/safetensors file at [here](https://www.iopaint.com/models#load-ckptsafetensors).
+You can see other supported models at [here](https://www.iopaint.com/models) and
+how to use local sd ckpt/safetensors file at
+[here](https://www.iopaint.com/models#load-ckptsafetensors).
 
 ### Plugins
 
-You can specify which plugins to use when starting the service, and you can view the commands to enable plugins by using `iopaint start --help`. 
+You can specify which plugins to use when starting the service, and you can view
+the commands to enable plugins by using `iopaint start --help`.
 
-More demonstrations of the Plugin can be seen [here](https://www.iopaint.com/plugins)
+More demonstrations of the Plugin can be seen
+[here](https://www.iopaint.com/plugins)
 
 ```bash
 iopaint start --enable-interactive-seg --interactive-seg-device=cuda
@@ -100,10 +117,12 @@ iopaint run --model=lama --device=cpu \
 --output=output_dir
 ```
 
-`--image` is the folder containing input images, `--mask` is the folder containing corresponding mask images.
-When `--mask` is a path to a mask file, all images will be processed using this mask.
+`--image` is the folder containing input images, `--mask` is the folder
+containing corresponding mask images. When `--mask` is a path to a mask file,
+all images will be processed using this mask.
 
-You can see more information about the available models and plugins supported by IOPaint below.
+You can see more information about the available models and plugins supported by
+IOPaint below.
 
 ## Development
 
@@ -118,31 +137,34 @@ cp -r dist/ ../iopaint/web_app
 ```
 
 Create a `.env.local` file in `web_app` and fill in the backend IP and port.
+
 ```
 VITE_BACKEND=http://127.0.0.1:8080
 ```
 
 Start front-end development environment
+
 ```bash
 npm run dev
 ```
 
 Install back-end requirements and start backend service
+
 ```bash
 pip install -r requirements.txt
 python3 main.py start --model lama --port 8080
 ```
 
-Then you can visit `http://localhost:5173/` for development.
-The frontend code will automatically update after being modified,
-but the backend needs to restart the service after modifying the python code.
+Then you can visit `http://localhost:5173/` for development. The frontend code
+will automatically update after being modified, but the backend needs to restart
+the service after modifying the python code.
 
 ### Testing
 
 Use the friendly test runner from the repo root:
 
 ```bash
-./run_tests.sh
+./run.sh test
 ```
 
 It logs each run to `./logs/test-run-<timestamp>.log`.

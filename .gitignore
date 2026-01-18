@@ -13,4 +13,4 @@ iopaint/web_app/
 config/secret.env
 
 # Manual testing
-test*.sh
+

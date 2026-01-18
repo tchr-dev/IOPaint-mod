@@ -75,7 +75,7 @@ NOT refactor unless strictly required for type correctness.
 
 ## Completion Criteria
 
-- `./launch.sh prod` succeeds.
+- `./run.sh prod` succeeds.
 - `tsc` reports zero errors.
 - No new `any` types introduced unless explicitly justified.
 - State remains serializable and Immer-safe.

@@ -2,14 +2,14 @@
 
 ### ERROR DESCRIPTION%
 
-summarize an error and provide approach to solve if any: ❯ ./launch.sh Usage:
-./launch.sh <dev|prod> [--model MODEL] [--port PORT]
+summarize an error and provide approach to solve if any: ❯ ./run.sh Usage:
+./run.sh <dev|prod> [--model MODEL] [--port PORT]
 
 Modes: dev Start backend + Vite dev server prod Build frontend, copy assets,
 start backend
 
 Options: --model Model name (default: openai-compat) --port Backend port
-(default: 8080) ❯ ./launch.sh prod Building frontend and starting backend
+(default: 8080) ❯ ./run.sh prod Building frontend and starting backend
 (model=openai-compat, port=8080)... Resolved 134 packages in 0.47ms Audited 108
 packages in 0.02ms npm warn deprecated @types/axios@0.14.0: This is a stub types
 definition for axios (https://github.com/mzabriskie/axios). axios provides its
@@ -49,8 +49,8 @@ incompatible. Type 'string' is not assignable to type '"ok" | "warning" |
 "blocked"'.
 
 151 vi.mocked(getOpenAIBudgetStatus).mockResolvedValue(mockBudgetStatus)
-~~~~~~~~~~~~~~~~
 
+```
 src/lib/**tests**/openai-job-flow.test.ts:163:7 - error TS2322: Type 'number' is
 not assignable to type 'undefined'.
 
@@ -215,7 +215,7 @@ src/lib/**tests**/openai-job-flow.test.ts:151 5 src/lib/states.ts:180 ╭─ 
 
 What failed (in plain terms)
 
-./launch.sh prod runs tsc && vite build. The build stops because TypeScript
+./run.sh prod runs tsc && vite build. The build stops because TypeScript
 compilation fails (10 errors across 3 files). The npm warnings/vulnerabilities
 are not what breaks the build.
 
@@ -229,7 +229,7 @@ File: src/components/OpenAI/**tests**/generation-history.test.tsx Error: TS2305:
 Module '"react"' has no exported member 'act'.
 
 Why: In your React/TypeScript setup, act is not exported from react. Typically
-you import it from react-dom/test-utils (older) or rely on Testing Library’s
+you import it from react-dom/test-utils (older) or rely on Testing Library's
 utilities.
 
 Fix options (pick one): •	Recommended (Testing Library): remove direct act
@@ -269,7 +269,7 @@ Why: Your model type currently declares actual_cost_usd as undefined (likely
 optional-but-typed-wrong).
 
 Fix choices: •	If actual_cost_usd is supposed to exist after completion → fix
-the type to something like number | undefined (or number | null). •	If it’s
+the type to something like number | undefined (or number | null). •	If it's
 intentionally never a number → fix the test to not set it.
 
 2.3 error_message not allowed in the type Error: 'error_message' does not exist
@@ -288,12 +288,12 @@ File: src/lib/states.ts Errors: WritableDraft<HTMLImageElement> is not
 assignable to HTMLImageElement and later failures around passing get/set into
 startOpenAIJobPolling.
 
-Root cause (most likely): •	You’re storing DOM objects (HTMLImageElement) inside
+Root cause (most likely): •	You're storing DOM objects (HTMLImageElement) inside
 an Immer-powered state (Zustand + immer middleware). •	Immer wraps values into
-WritableDraft<>, and DOM types don’t play well with that structural typing
+WritableDraft<>, and DOM types don't play well with that structural typing
 (hence the crazy cascade: anchors, shadowRoot, attributeStyleMap, etc.).
 
-Fix (best practice) Don’t store DOM nodes in state. Store serializable data
+Fix (best practice) Don't store DOM nodes in state. Store serializable data
 instead: •	src/data URL •	width/height •	id •	or a custom Render object
 
 Example direction:
@@ -313,12 +313,12 @@ behind any. This is not ideal, but it will stop the TS cascade.
 
 File: src/lib/states.ts (multiple lines)
 
-Why: Zustand’s set type differs depending on whether you use the Immer
-middleware. Your helper startOpenAIJobPolling likely expects a “vanilla” set(fn)
-signature, but you’re passing an Immer-enhanced set((draft)=>...) (or vice
+Why: Zustand's set type differs depending on whether you use the Immer
+middleware. Your helper startOpenAIJobPolling likely expects a "vanilla" set(fn)
+signature, but you're passing an Immer-enhanced set((draft)=>...) (or vice
 versa).
 
-Fix approach: •	Update the helper’s TypeScript signature to accept the exact
+Fix approach: •	Update the helper's TypeScript signature to accept the exact
 get/set types from your store (the ones exported by Zustand). •	Or provide a
 thin adapter wrapper: •	If helper expects set((state)=>state) but you have Immer
 set((draft)=>void), then wrap/overload accordingly.
@@ -334,12 +334,12 @@ import + globalThis typing in generation-history.test.tsx. 2.	Fix test mocks in
 openai-job-flow.test.ts (status union, actual_cost_usd, error_message). 3.	Fix
 state shape: remove HTMLImageElement from Immer state (best), or temporarily
 loosen the type to unblock builds. 4.	Adjust startOpenAIJobPolling typings to
-match your Zustand store’s get/set.
+match your Zustand store's get/set.
 
 ⸻
 
 Side notes (not build blockers, but worth doing) •	npm audit shows 18
-vulnerabilities. It doesn’t stop tsc, but you should run: •	npm audit (to see
+vulnerabilities. It doesn't stop tsc, but you should run: •	npm audit (to see
 what) •	then cautiously npm audit fix (or pin/override), especially for
 critical.
 
@@ -351,3 +351,4 @@ resorting to any.
 ## INSTRUCTIONS TO USE:
 
 ./AGENT-TYPESCRIPT-FAILURE-RESOLVER.md
+```

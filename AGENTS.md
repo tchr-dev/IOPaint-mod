@@ -1,147 +1,165 @@
-# Repository Guidelines
+# AGENTS.md
 
-## Purpose
-- This file guides agentic coding assistants working in this repo.
-- Keep changes minimal, focused, and aligned with existing patterns.
+This file provides guidance to agents when working with code in this repository.
 
-## Project Structure
-- `iopaint/`: FastAPI backend, CLI, model registry, plugins.
-- `iopaint/openai_compat/`: OpenAI-compatible API layer.
-- `iopaint/budget/`: Budgeting, rate limiting, and cost tracking.
-- `iopaint/storage/`: History, model cache, and image storage.
-- `iopaint/tests/`: Pytest suite.
-- `web_app/`: React + TypeScript + Vite frontend source.
-- `iopaint/web_app/`: Built frontend assets served by backend.
-- `assets/`, `docs/`, `scripts/`, `docker/`: support materials.
+## Project Overview
 
-## Build, Run, Lint, and Test Commands
-Backend (Python):
-- `uv sync` (preferred) or `pip install -r requirements.txt`.
-- `python3 main.py start --model lama --port 8080` runs API server.
-- `pytest iopaint/tests/test_model.py -v` runs backend tests.
-- Single test by name: `pytest iopaint/tests/test_model.py -k "test_name" -v`.
-- Single test file: `pytest iopaint/tests/test_model.py -v`.
-- Device-specific subset: `pytest iopaint/tests/test_model.py -k "cpu" -v`.
+IOPaint is an image inpainting and outpainting tool powered by AI models. It
+provides both a web UI and CLI for removing objects, generating content in
+masked areas, and enhancing images using various AI models including LaMa,
+Stable Diffusion, SDXL, and specialized models like PowerPaint and AnyText. It
+also supports OpenAI-compatible APIs (gpt-image-1, dall-e-3) with budget safety
+controls.
 
-Frontend (React/TypeScript):
-- `cd web_app && npm install` installs frontend deps.
-- `npm run dev` starts Vite dev server.
-- `npm run build` runs `tsc` and `vite build`.
-- `npm run lint` runs ESLint (no warnings allowed).
-- `npm run preview` serves a local production build.
-- Copy build to backend: `cp -r dist/ ../iopaint/web_app`.
+## Development Commands
 
-## Tooling and Config Notes
-- Python requires 3.12+ (see `pyproject.toml`).
-- Frontend uses Vite with `@` alias to `web_app/src`.
-- TypeScript strict mode is enabled in `web_app/tsconfig.json`.
-- ESLint config lives in `web_app/.eslintrc.cjs`.
-- No Python formatter config is present; keep formatting stable.
+### Quick Start
 
-## Coding Style (Python)
-- Follow PEP 8, 4-space indentation.
-- Prefer explicit type hints for public functions and models.
-- Use `snake_case` for functions/modules and `PascalCase` for classes.
-- Keep function bodies small and single-responsibility.
-- Use f-strings for string formatting.
-- Favor immutable defaults; never use mutable objects as default args.
-- Prefer `Path` from `pathlib` for filesystem work.
-- Keep FastAPI routes thin; move heavy logic into services/helpers.
-- Reuse helpers in `iopaint/helper.py` and `iopaint/model/utils.py`.
+```bash
+# Development mode: starts backend + Vite dev server
+./run.sh dev --model lama --port 8080
 
-## Python Imports and Modules
-- Group imports: stdlib, third-party, local; blank line between groups.
-- Prefer absolute imports from `iopaint` packages.
-- Avoid circular imports; move shared code to `helper` or `services`.
-- Remove unused imports and keep import lists minimal.
+# Production mode: builds frontend, starts backend
+./run.sh prod --model lama --port 8080
 
-## Error Handling (Backend)
-- Raise `fastapi.HTTPException` for HTTP errors.
-- Prefer specific exceptions over bare `except`.
-- Only catch broad exceptions at request boundaries.
-- When catching exceptions, log context and rethrow if needed.
-- Keep error messages user-friendly and consistent.
+# Interactive test runner (logs to ./logs/)
+./run.sh test
+```
 
-## Logging and Observability
-- Use `loguru.logger` for structured logging.
-- Avoid `print` in production paths.
-- Include request context (model name, device, job id) when helpful.
+### Backend (Python)
 
-## Async and Performance
-- Avoid blocking work in request handlers when possible.
-- Use async tasks or background helpers for heavy operations.
-- Release GPU memory with `torch_gc` where appropriate.
+```bash
+# Install dependencies (using uv - recommended)
+uv sync
 
-## Coding Style (Frontend)
-- Use 2-space indentation and existing formatting.
-- Components use `PascalCase`; hooks/variables use `camelCase`.
-- Prefer function components and React hooks.
-- Keep JSX readable: one prop per line when long.
-- Use `@/` alias for imports from `web_app/src`.
-- Keep Tailwind class lists consistent with existing ordering.
-- Prefer `const` over `let` and avoid `var`.
+# Start backend server for development
+python3 main.py start --model lama --port 8080
 
-## TypeScript and Linting
-- TypeScript runs in strict mode; address type errors rather than suppressing.
-- Avoid `any`; use narrow unions or generics.
-- Prefer `unknown` with runtime checks when types are uncertain.
-- Use `import type` for type-only imports when needed.
-- ESLint warnings are treated as errors; keep `npm run lint` clean.
+# Start with OpenAI-compatible model
+python3 main.py start --model openai-compat --port 8080
 
-## Frontend State and API Usage
-- Reuse existing state patterns (Recoil/Zustand/React Query) as in nearby code.
-- Keep API base URL consistent across services.
-- Guard async calls with try/catch and surface errors in UI state.
+# Run tests (requires appropriate device - cuda/mps/cpu)
+pytest iopaint/tests/test_model.py -v
 
-## Testing Guidance
-- Pytest is the only configured test runner.
-- Keep new tests under `iopaint/tests/` with `test_*.py` names.
-- Prefer testing pure helpers and services instead of heavy model pipelines.
-- GPU/CPU model tests may require large downloads; mention this in PRs.
+# Run a single test
+pytest iopaint/tests/test_model.py::test_lama -v
 
-## Formatting and Refactors
-- No formatter is enforced for Python; keep diffs minimal.
-- Do not reformat entire files unless necessary.
-- For frontend, follow ESLint output; no Prettier config is present.
-- Prefer small, focused refactors over large rewrites.
+# Run tests for specific device
+pytest iopaint/tests/test_model.py -v -k "cpu"
+```
 
-## API and CLI Conventions
-- FastAPI app wiring lives in `iopaint/api.py`.
-- CLI entry points use `typer` in `iopaint/cli.py`.
-- Keep CLI flags consistent with existing commands.
-- Prefer adding config to existing Pydantic models.
+### Frontend (React/TypeScript/Vite)
 
-## Plugins and Models
-- Plugins live in `iopaint/plugins/` and should use existing base classes.
-- Model implementations live in `iopaint/model/`.
-- Keep model adapters isolated from API handlers.
-- Avoid adding heavy model initialization in module import time.
+```bash
+cd web_app
 
-## Data and Storage
-- Model downloads default to `~/.cache/`; override with `--model-dir`.
-- History and storage logic lives in `iopaint/storage/`.
-- Respect storage interfaces when adding persistence.
+# Install dependencies
+npm install
 
-## Frontend/Backend Integration
-- Backend serves built assets from `iopaint/web_app/`.
-- Set `web_app/.env.local` to `VITE_BACKEND=http://127.0.0.1:8080`.
-- Keep the backend URL configurable for local development.
+# Start development server (requires backend running on port 8080)
+npm run dev
 
-## Dependencies and Upgrades
-- Keep Python dependencies in `pyproject.toml`.
-- Keep frontend deps in `web_app/package.json`.
-- Avoid adding new heavy dependencies unless necessary.
+# Build for production
+npm run build
 
-## Documentation and Comments
-- Update docs only when behavior changes.
-- Avoid adding inline comments unless requested or clarifying complex logic.
+# After build, copy to iopaint package
+cp -r dist/ ../iopaint/web_app
 
-## Git and PR Notes
-- Commit messages: short, imperative summaries.
-- PRs should note test commands run or why skipped.
-- Add screenshots for UI changes in `web_app/`.
+# Lint (no warnings allowed)
+npm run lint
+```
 
-## Agent Notes
-- No Cursor rules found (`.cursor/rules/` or `.cursorrules`).
-- No GitHub Copilot instructions found (`.github/copilot-instructions.md`).
-- If new rules are added later, update this file accordingly.
+Configure backend URL in `web_app/.env.local`:
+
+```
+VITE_BACKEND=http://127.0.0.1:8080
+```
+
+## Architecture
+
+### Core Components
+
+**Entry Point**: `main.py` → `iopaint/__init__.py:entry_point()` →
+`iopaint/cli.py:typer_app`
+
+**CLI Commands** (`iopaint/cli.py`):
+
+- `start`: Launch web server with FastAPI backend
+- `run`: Batch process images from command line
+- `download`: Download models from HuggingFace
+- `list`: List downloaded models
+- `start-web-config`: Launch web-based configuration UI
+
+**API Server** (`iopaint/api.py`):
+
+- FastAPI application with Socket.IO for real-time progress updates
+- Serves static React frontend from `iopaint/web_app/`
+- Key endpoints: `/api/v1/inpaint`, `/api/v1/model`, `/api/v1/run_plugin_*`
+
+**Model System**:
+
+- `iopaint/model/base.py:InpaintModel`: Abstract base class all models inherit
+  from
+- `iopaint/model/__init__.py`: Model registry mapping names to classes
+- `iopaint/model_manager.py:ModelManager`: Loads/switches models, handles
+  ControlNet/BrushNet/PowerPaintV2
+
+**Model Types** (`iopaint/schema.py:ModelType`):
+
+- `INPAINT`: Traditional inpainting models (LaMa, MAT, ZITS, etc.)
+- `DIFFUSERS_SD`/`DIFFUSERS_SD_INPAINT`: Stable Diffusion 1.5
+- `DIFFUSERS_SDXL`/`DIFFUSERS_SDXL_INPAINT`: Stable Diffusion XL
+- `OPENAI_COMPAT`: OpenAI-compatible API models (gpt-image-1, dall-e-3, etc.)
+
+**OpenAI Compatibility** (`iopaint/openai_compat/`):
+
+- `client.py`: Wrapper around OpenAI's image API
+- `model_adapter.py`: Adapts OpenAI responses to IOPaint's internal format
+- `models.py`: Request/response Pydantic schemas
+- `config.py`: OpenAI-specific configuration
+
+**Budget Safety** (`iopaint/budget/`):
+
+- `guard.py:BudgetGuard`: Enforces daily/monthly/session spending caps
+- `rate_limiter.py`: Rate limiting between expensive operations
+- `cost_estimator.py`: Estimates costs before API calls
+- `storage.py`: Persists budget tracking data
+- `session.py`: Session-scoped budget tracking
+
+**Plugins** (`iopaint/plugins/`):
+
+- `InteractiveSeg`: SAM-based interactive segmentation for mask generation
+- `RemoveBG`: Background removal (briaai models)
+- `AnimeSeg`: Anime-specific segmentation
+- `RealESRGAN`: Super resolution upscaling
+- `GFPGAN`/`RestoreFormer`: Face restoration
+
+**Frontend** (`web_app/src/`):
+
+- React 18 + TypeScript + Vite
+- State: Zustand + Recoil
+- UI: Radix UI primitives + Tailwind CSS
+- API: Axios + TanStack Query
+
+### Request Flow
+
+1. User draws mask on image in React frontend
+2. POST to `/api/v1/inpaint` with base64 image + mask
+3. `Api.api_inpaint()` decodes images, calls `ModelManager.__call__()`
+4. Model processes image, Socket.IO emits progress updates
+5. Result returned as image response with seed header
+
+### Adding New Models
+
+1. Create model class inheriting from `InpaintModel` in `iopaint/model/`
+2. Implement `init_model()`, `forward()`, `is_downloaded()`, and set `name`
+   class attribute
+3. Register in `iopaint/model/__init__.py:models` dict
+4. Add to `AVAILABLE_MODELS` or `DIFFUSERS_MODELS` in `iopaint/const.py` if
+   applicable
+
+### Configuration
+
+- Models download to `~/.cache/` by default (override with `--model-dir`)
+- Server config via CLI flags or JSON config file (`--config`)
+- Device selection: `cpu`, `cuda`, `mps` (Apple Silicon)
