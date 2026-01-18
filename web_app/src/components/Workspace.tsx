@@ -1,5 +1,4 @@
-import { useEffect } from "react"
-import Editor from "./Editor"
+import { lazy, Suspense, useEffect } from "react"
 import { currentModel } from "@/lib/api"
 import { useStore } from "@/lib/states"
 import ImageSize from "./ImageSize"
@@ -8,6 +7,22 @@ import { InteractiveSeg } from "./InteractiveSeg"
 import SidePanel from "./SidePanel"
 import DiffusionProgress from "./DiffusionProgress"
 import FileSelect from "./FileSelect"
+import { Skeleton } from "./ui/skeleton"
+
+const Editor = lazy(() => import("./Editor"))
+
+const EditorSkeleton = () => (
+  <div className="flex items-center justify-center w-full h-full">
+    <div className="space-y-4 w-full max-w-md p-6">
+      <Skeleton variant="rectangular" height={400} className="w-full" />
+      <div className="flex justify-between">
+        <Skeleton variant="rectangular" width={80} height={36} />
+        <Skeleton variant="rectangular" width={80} height={36} />
+        <Skeleton variant="rectangular" width={80} height={36} />
+      </div>
+    </div>
+  </div>
+)
 
 const Workspace = () => {
 const [file, updateSettings, setFile] = useStore((state) => [
@@ -39,7 +54,13 @@ const [file, updateSettings, setFile] = useStore((state) => [
               />
             </div>
           )}
-          {file ? <Editor file={file} /> : <></>}
+          {file ? (
+            <Suspense fallback={<EditorSkeleton />}>
+              <Editor file={file} />
+            </Suspense>
+          ) : (
+            <></>
+          )}
         </main>
 
         {/* Side panel - collapsible */}

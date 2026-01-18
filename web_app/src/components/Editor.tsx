@@ -855,6 +855,8 @@ export default function Editor(props: EditorProps) {
           <div className="grid [grid-template-areas:'editor-content'] gap-y-4">
             <canvas
               className="[grid-area:editor-content]"
+              role="img"
+              aria-label="Original image display"
               style={{
                 clipPath: `inset(0 ${sliderPos}% 0 0)`,
                 transition: `clip-path ${COMPARE_SLIDER_DURATION_MS}ms`,
@@ -875,6 +877,8 @@ export default function Editor(props: EditorProps) {
                   ? "pointer-events-none animate-pulse duration-600"
                   : ""
               )}
+              role="application"
+              aria-label="Drawing canvas for creating masks. Use mouse or touch to draw on the image."
               style={{
                 cursor: getCursor(),
                 clipPath: `inset(0 ${sliderPos}% 0 0)`,
@@ -984,6 +988,17 @@ export default function Editor(props: EditorProps) {
       onMouseUp={onPointerUp}
       onWheel={handleScroll}
     >
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md"
+      >
+        Skip to main content
+      </a>
+
+      <span role="status" className="sr-only">
+        {isProcessing ? "Processing image" : "Ready"}
+      </span>
+
       {renderCanvas()}
       {showBrush &&
         !isInpainting &&

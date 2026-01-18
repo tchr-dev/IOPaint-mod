@@ -6,7 +6,7 @@ import { useImage } from "@/hooks/useImage"
 
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover"
 import PromptInput from "./PromptInput"
-import { RotateCw, Image, Upload, Sparkles } from "lucide-react"
+import { RotateCw, Image, Upload, Sparkles, Sun, Moon, Monitor } from "lucide-react"
 import FileManager, { MASK_TAB } from "./FileManager"
 import { getMediaBlob, getMediaFile } from "@/lib/api"
 import { useStore } from "@/lib/states"
@@ -15,6 +15,14 @@ import { cn, fileToImage } from "@/lib/utils"
 import { useToast } from "./ui/use-toast"
 import { Switch } from "./ui/switch"
 import { Label } from "./ui/label"
+import { useTheme } from "next-themes"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select"
 
 const Header = () => {
   const [
@@ -62,6 +70,7 @@ const Header = () => {
   const { toast } = useToast()
   const [maskImage, maskImageLoaded] = useImage(customMask)
   const [openMaskPopover, setOpenMaskPopover] = useState(false)
+  const { theme, setTheme } = useTheme()
 
   const handleRerunLastMask = () => {
     runInpainting()
@@ -233,6 +242,32 @@ const Header = () => {
       <div className="flex gap-1">
         <Shortcuts />
         {serverConfig.disableModelSwitch ? <></> : <SettingsDialog />}
+
+        <Select value={theme} onValueChange={setTheme}>
+          <SelectTrigger className="h-9 w-9 px-0" aria-label="Select theme">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="light">
+              <div className="flex items-center gap-2">
+                <Sun className="h-4 w-4" />
+                <span>Light</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="dark">
+              <div className="flex items-center gap-2">
+                <Moon className="h-4 w-4" />
+                <span>Dark</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="system">
+              <div className="flex items-center gap-2">
+                <Monitor className="h-4 w-4" />
+                <span>System</span>
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
     </header>
   )
