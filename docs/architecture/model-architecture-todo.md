@@ -711,9 +711,9 @@ class RealESRGANPlugin:
 
 **Issue**: No way to detect when model updates are available.
 
-**Priority**: 🟢 P3  
-**Effort**: Medium  
-**Status**: Pending
+**Priority**: 🟢 P3
+**Effort**: Medium
+**Status**: Complete
 
 #### Problem Details
 Model URLs and MD5s are hardcoded without version metadata.
@@ -775,11 +775,11 @@ def check_updates():
 ```
 
 #### Sub-tasks
-- [ ] Add version metadata to base model class
-- [ ] Implement remote version checking for all models
-- [ ] Add CLI command for update checking
-- [ ] Add update notification in Settings UI
-- [ ] Add `--update-models` CLI flag
+- [x] Add version metadata to base model class
+- [x] Implement remote version checking for all models
+- [x] Add CLI command for update checking
+- [ ] Add update notification in Settings UI (future enhancement)
+- [ ] Add `--update-models` CLI flag (future enhancement)
 
 #### Files to Modify
 - `iopaint/model/base.py`

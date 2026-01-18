@@ -240,6 +240,10 @@ class LDM(InpaintModel):
     is_erase_model = True
     supported_devices = ["cuda", "cpu"]
 
+    # Version metadata for update checking
+    VERSION = "1.0.0"
+    VERSION_URL = "https://api.github.com/repos/Sanster/models/releases/latest"
+
     def __init__(self, device, fp16: bool = True, **kwargs):
         self.fp16 = fp16
         super().__init__(device)

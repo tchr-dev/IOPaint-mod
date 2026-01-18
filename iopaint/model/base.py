@@ -25,6 +25,10 @@ class InpaintModel:
     is_erase_model = False
     supported_devices: List[str] = ["cuda", "mps", "cpu"]
 
+    # Version metadata for update checking
+    VERSION: Optional[str] = None
+    VERSION_URL: Optional[str] = None
+
     def __init__(self, device, **kwargs):
         """
 
@@ -55,6 +59,38 @@ class InpaintModel:
 
     @staticmethod
     def download(): ...
+
+    @classmethod
+    def get_remote_version(cls) -> Optional[str]:
+        """Fetch latest version from remote repository."""
+        if not cls.VERSION_URL:
+            return None
+
+        try:
+            import requests
+            resp = requests.get(cls.VERSION_URL, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                # Handle GitHub API format
+                if "tag_name" in data:
+                    return data["tag_name"].lstrip("v")
+                # Handle other API formats if needed
+                return data.get("version")
+        except Exception as e:
+            logger.debug(f"Failed to fetch version for {cls.name}: {e}")
+        return None
+
+    @classmethod
+    def check_for_updates(cls) -> bool:
+        """Check if a newer version is available."""
+        if not cls.VERSION or not cls.VERSION_URL:
+            return False
+
+        remote_version = cls.get_remote_version()
+        if remote_version and remote_version != cls.VERSION:
+            logger.info(f"New version available for {cls.name}: {remote_version} (current: {cls.VERSION})")
+            return True
+        return False
 
     def _pad_forward(self, image, mask, config: InpaintRequest):
         origin_height, origin_width = image.shape[:2]

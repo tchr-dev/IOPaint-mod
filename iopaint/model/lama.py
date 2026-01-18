@@ -35,6 +35,10 @@ class LaMa(InpaintModel):
     is_erase_model = True
     supported_devices: List[str] = ["cuda", "cpu"]
 
+    # Version metadata for update checking
+    VERSION = "1.0.0"
+    VERSION_URL = "https://api.github.com/repos/Sanster/models/releases/latest"
+
     @staticmethod
     def download():
         download_model(LAMA_MODEL_URL, LAMA_MODEL_MD5)
@@ -69,6 +73,8 @@ class LaMa(InpaintModel):
 
 class AnimeLaMa(LaMa):
     name = "anime-lama"
+    VERSION = "1.0.0"
+    VERSION_URL = "https://api.github.com/repos/Sanster/models/releases/latest"
     supported_devices: List[str] = ["cuda", "cpu"]
 
     @staticmethod

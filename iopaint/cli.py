@@ -58,6 +58,36 @@ def list_model(
         print(it.name)
 
 
+@typer_app.command(help="Check for model updates")
+def check_updates():
+    """Check if newer versions of models are available."""
+    from iopaint.model import models
+
+    updates_available = []
+    checked_models = 0
+
+    print("Checking for model updates...")
+    for name, cls in models.items():
+        if hasattr(cls, "check_for_updates") and cls.VERSION:
+            try:
+                checked_models += 1
+                if cls.check_for_updates():
+                    updates_available.append(name)
+            except Exception as e:
+                logger.warning(f"Error checking updates for {name}: {e}")
+
+    if not updates_available:
+        if checked_models > 0:
+            print(f"✅ All {checked_models} models are up to date!")
+        else:
+            print("ℹ️  No models support version checking yet.")
+    else:
+        print(f"\n📦 Updates available for {len(updates_available)} model(s):")
+        for model_name in updates_available:
+            print(f"  • {model_name}")
+        print("\n💡 Run 'iopaint download <model>' to update individual models.")
+
+
 @typer_app.command(help="Batch processing images")
 def run(
     model: str = Option("lama"),
