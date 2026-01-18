@@ -9,6 +9,7 @@ class OpenCV2(InpaintModel):
     name = "cv2"
     pad_mod = 1
     is_erase_model = True
+    supported_devices = ["cuda", "mps", "cpu"]
 
     @staticmethod
     def is_downloaded() -> bool:

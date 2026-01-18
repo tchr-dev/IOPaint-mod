@@ -27,12 +27,14 @@ class ModelType(str, Enum):
     DIFFUSERS_SDXL_INPAINT = "diffusers_sdxl_inpaint"
     DIFFUSERS_OTHER = "diffusers_other"
     OPENAI_COMPAT = "openai_compat"  # OpenAI-compatible API (gpt-image-1, dall-e-3, etc.)
+    UNKNOWN = "unknown"  # Type not yet determined (deferred detection)
 
 
 class ModelInfo(BaseModel):
     name: str
     path: str
-    model_type: ModelType
+    model_type: ModelType = ModelType.UNKNOWN
+    is_single_file_diffusers: bool = False
     is_single_file_diffusers: bool = False
 
     @computed_field

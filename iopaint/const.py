@@ -11,18 +11,27 @@ DIFFUSERS_SD_INPAINT_CLASS_NAME = "StableDiffusionInpaintPipeline"
 DIFFUSERS_SDXL_CLASS_NAME = "StableDiffusionXLPipeline"
 DIFFUSERS_SDXL_INPAINT_CLASS_NAME = "StableDiffusionXLInpaintPipeline"
 
-MPS_UNSUPPORT_MODELS = [
-    "lama",
-    "ldm",
-    "zits",
-    "mat",
-    "fcf",
-    "cv2",
-    "manga",
-]
-
 DEFAULT_MODEL = "lama"
-AVAILABLE_MODELS = ["lama", "ldm", "zits", "mat", "fcf", "manga", "cv2", "migan"]
+
+
+def get_available_models() -> List[str]:
+    """Get list of all available inpaint model names from model registry."""
+    from iopaint.model import models
+    return [
+        name for name, cls in models.items()
+        if getattr(cls, "is_erase_model", False)
+    ]
+
+# Lazy evaluation to avoid circular imports
+_available_models_cache: List[str] | None = None
+
+def AVAILABLE_MODELS() -> List[str]:
+    """Get list of available models (cached for performance)."""
+    global _available_models_cache
+    if _available_models_cache is None:
+        _available_models_cache = get_available_models()
+    return _available_models_cache
+
 DIFFUSION_MODELS = [
     "runwayml/stable-diffusion-inpainting",
     "Uminosachi/realisticVisionV51_v51VAE-inpainting",

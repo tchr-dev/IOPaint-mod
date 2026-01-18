@@ -1,4 +1,5 @@
 import os
+from typing import List
 
 import cv2
 import numpy as np
@@ -32,6 +33,7 @@ class LaMa(InpaintModel):
     name = "lama"
     pad_mod = 8
     is_erase_model = True
+    supported_devices: List[str] = ["cuda", "cpu"]
 
     @staticmethod
     def download():
@@ -67,6 +69,7 @@ class LaMa(InpaintModel):
 
 class AnimeLaMa(LaMa):
     name = "anime-lama"
+    supported_devices: List[str] = ["cuda", "cpu"]
 
     @staticmethod
     def download():

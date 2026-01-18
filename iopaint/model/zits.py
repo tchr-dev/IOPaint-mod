@@ -227,6 +227,7 @@ class ZITS(InpaintModel):
     pad_mod = 32
     pad_to_square = True
     is_erase_model = True
+    supported_devices = ["cuda", "cpu"]
 
     def __init__(self, device, **kwargs):
         """

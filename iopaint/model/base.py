@@ -1,5 +1,5 @@
 import abc
-from typing import Optional
+from typing import List, Optional
 
 import cv2
 import torch
@@ -23,6 +23,7 @@ class InpaintModel:
     pad_mod = 8
     pad_to_square = False
     is_erase_model = False
+    supported_devices: List[str] = ["cuda", "mps", "cpu"]
 
     def __init__(self, device, **kwargs):
         """
@@ -30,7 +31,8 @@ class InpaintModel:
         Args:
             device:
         """
-        device = switch_mps_device(self.name, device)
+        from . import models
+        device = switch_mps_device(models, self.name, device)
         self.device = device
         self.init_model(device, **kwargs)
 

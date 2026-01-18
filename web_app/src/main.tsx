@@ -12,7 +12,7 @@ const queryClient = new QueryClient()
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="dark" attribute="class" enableSystem>
+      <ThemeProvider defaultTheme="dark" attribute="data-theme" enableSystem>
         <TooltipProvider>
           <App />
         </TooltipProvider>

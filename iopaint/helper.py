@@ -3,14 +3,13 @@ import imghdr
 import io
 import os
 import sys
-from typing import List, Optional, Dict, Tuple
-
+from typing import List, Optional, Dict, Tuple, Type
 from urllib.parse import urlparse
+
 import cv2
 from PIL import Image, ImageOps, PngImagePlugin
 import numpy as np
 import torch
-from iopaint.const import MPS_UNSUPPORT_MODELS
 from loguru import logger
 from torch.hub import download_url_to_file, get_dir
 import hashlib
@@ -24,10 +23,20 @@ def md5sum(filename):
     return md5.hexdigest()
 
 
-def switch_mps_device(model_name, device):
-    if model_name in MPS_UNSUPPORT_MODELS and str(device) == "mps":
-        logger.info(f"{model_name} not support mps, switch to cpu")
+def switch_mps_device(models: Dict[str, Type], model_name: str, device: torch.device):
+    if str(device) != "mps":
+        return device
+
+    supported_devices = ["cuda", "mps", "cpu"]
+
+    model_cls = models.get(model_name)
+    if model_cls is not None:
+        supported_devices = getattr(model_cls, "supported_devices", supported_devices)
+
+    if "mps" not in supported_devices:
+        logger.info(f"{model_name} does not support MPS, switching to CPU")
         return torch.device("cpu")
+
     return device
 
 

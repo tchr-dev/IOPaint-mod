@@ -155,8 +155,8 @@ VITE_BACKEND=http://127.0.0.1:8080
 2. Implement `init_model()`, `forward()`, `is_downloaded()`, and set `name`
    class attribute
 3. Register in `iopaint/model/__init__.py:models` dict
-4. Add to `AVAILABLE_MODELS` or `DIFFUSERS_MODELS` in `iopaint/const.py` if
-   applicable
+4. For inpaint models: set `is_erase_model = True` (automatically added to AVAILABLE_MODELS)
+   For diffusion models: add to `DIFFUSERS_MODELS` in `iopaint/const.py` if applicable
 
 ### Configuration
 

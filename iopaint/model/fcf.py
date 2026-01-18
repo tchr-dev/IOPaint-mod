@@ -1627,6 +1627,7 @@ class FcF(InpaintModel):
     pad_mod = 512
     pad_to_square = True
     is_erase_model = True
+    supported_devices = ["cuda", "cpu"]
 
     def init_model(self, device, **kwargs):
         seed = 0

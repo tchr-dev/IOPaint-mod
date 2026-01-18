@@ -16,13 +16,6 @@ import { useToast } from "./ui/use-toast"
 import { Switch } from "./ui/switch"
 import { Label } from "./ui/label"
 import { useTheme } from "next-themes"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select"
 
 const Header = () => {
   const [
@@ -243,31 +236,18 @@ const Header = () => {
         <Shortcuts />
         {serverConfig.disableModelSwitch ? <></> : <SettingsDialog />}
 
-        <Select value={theme} onValueChange={setTheme}>
-          <SelectTrigger className="h-9 w-9 px-0" aria-label="Select theme">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="light">
-              <div className="flex items-center gap-2">
-                <Sun className="h-4 w-4" />
-                <span>Light</span>
-              </div>
-            </SelectItem>
-            <SelectItem value="dark">
-              <div className="flex items-center gap-2">
-                <Moon className="h-4 w-4" />
-                <span>Dark</span>
-              </div>
-            </SelectItem>
-            <SelectItem value="system">
-              <div className="flex items-center gap-2">
-                <Monitor className="h-4 w-4" />
-                <span>System</span>
-              </div>
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        <IconButton
+          tooltip={`Switch theme (${theme})`}
+          onClick={() => {
+            if (theme === "light") setTheme("dark");
+            else if (theme === "dark") setTheme("system");
+            else setTheme("light");
+          }}
+        >
+          {theme === "light" && <Sun className="h-4 w-4" />}
+          {theme === "dark" && <Moon className="h-4 w-4" />}
+          {theme === "system" && <Monitor className="h-4 w-4" />}
+        </IconButton>
       </div>
     </header>
   )

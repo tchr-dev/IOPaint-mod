@@ -104,7 +104,7 @@ def start(
     inbrowser: bool = Option(False, help=INBROWSER_HELP),
     model: str = Option(
         DEFAULT_MODEL,
-        help=f"Erase models: [{', '.join(AVAILABLE_MODELS)}].\n"
+        help=f"Erase models: [{', '.join(AVAILABLE_MODELS())}].\n"
         f"Diffusion models: [{', '.join(DIFFUSION_MODELS)}] or any SD/SDXL normal/inpainting models on HuggingFace.",
     ),
     model_dir: Path = Option(

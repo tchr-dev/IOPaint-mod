@@ -33,6 +33,7 @@ class Manga(InpaintModel):
     name = "manga"
     pad_mod = 16
     is_erase_model = True
+    supported_devices = ["cuda", "cpu"]
 
     def init_model(self, device, **kwargs):
         self.inpaintor_model = load_jit_model(

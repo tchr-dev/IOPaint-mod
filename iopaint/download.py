@@ -54,62 +54,68 @@ def folder_name_to_show_name(name: str) -> str:
 
 @lru_cache(maxsize=512)
 def get_sd_model_type(model_abs_path: str) -> Optional[ModelType]:
-    if "inpaint" in Path(model_abs_path).name.lower():
-        model_type = ModelType.DIFFUSERS_SD_INPAINT
-    else:
-        # load once to check num_in_channels
-        from diffusers import StableDiffusionInpaintPipeline
+    filename_lower = Path(model_abs_path).name.lower()
 
-        try:
-            StableDiffusionInpaintPipeline.from_single_file(
-                model_abs_path,
-                load_safety_checker=False,
-                num_in_channels=9,
-                original_config_file=get_config_files()["v1"],
-            )
-            model_type = ModelType.DIFFUSERS_SD_INPAINT
-        except ValueError as e:
-            if "[320, 4, 3, 3]" in str(e):
-                model_type = ModelType.DIFFUSERS_SD
-            else:
-                logger.info(f"Ignore non sdxl file: {model_abs_path}")
-                return
-        except Exception as e:
-            logger.error(f"Failed to load {model_abs_path}: {e}")
-            return
-    return model_type
+    if "inpaint" in filename_lower:
+        return ModelType.DIFFUSERS_SD_INPAINT
+
+    if "sd" in filename_lower and "sdxl" not in filename_lower:
+        if "v1" in filename_lower or "v1.5" in filename_lower or "base" in filename_lower:
+            return ModelType.DIFFUSERS_SD
+
+    from diffusers import StableDiffusionInpaintPipeline
+
+    try:
+        StableDiffusionInpaintPipeline.from_single_file(
+            model_abs_path,
+            load_safety_checker=False,
+            num_in_channels=9,
+            original_config_file=get_config_files()["v1"],
+        )
+        return ModelType.DIFFUSERS_SD_INPAINT
+    except ValueError as e:
+        if "[320, 4, 3, 3]" in str(e):
+            return ModelType.DIFFUSERS_SD
+        else:
+            logger.info(f"Ignore non sd file: {model_abs_path}")
+            return None
+    except Exception as e:
+        logger.error(f"Failed to load {model_abs_path}: {e}")
+        return None
 
 
 @lru_cache()
 def get_sdxl_model_type(model_abs_path: str) -> Optional[ModelType]:
-    if "inpaint" in model_abs_path:
-        model_type = ModelType.DIFFUSERS_SDXL_INPAINT
-    else:
-        # load once to check num_in_channels
-        from diffusers import StableDiffusionXLInpaintPipeline
+    filename_lower = model_abs_path.lower()
 
-        try:
-            model = StableDiffusionXLInpaintPipeline.from_single_file(
-                model_abs_path,
-                load_safety_checker=False,
-                num_in_channels=9,
-                original_config_file=get_config_files()["xl"],
-            )
-            if model.unet.config.in_channels == 9:
-                # https://github.com/huggingface/diffusers/issues/6610
-                model_type = ModelType.DIFFUSERS_SDXL_INPAINT
-            else:
-                model_type = ModelType.DIFFUSERS_SDXL
-        except ValueError as e:
-            if "[320, 4, 3, 3]" in str(e):
-                model_type = ModelType.DIFFUSERS_SDXL
-            else:
-                logger.info(f"Ignore non sdxl file: {model_abs_path}")
-                return
-        except Exception as e:
-            logger.error(f"Failed to load {model_abs_path}: {e}")
-            return
-    return model_type
+    if "inpaint" in filename_lower:
+        return ModelType.DIFFUSERS_SDXL_INPAINT
+
+    if "sdxl" in filename_lower or "xl" in filename_lower:
+        return ModelType.DIFFUSERS_SDXL
+
+    from diffusers import StableDiffusionXLInpaintPipeline
+
+    try:
+        model = StableDiffusionXLInpaintPipeline.from_single_file(
+            model_abs_path,
+            load_safety_checker=False,
+            num_in_channels=9,
+            original_config_file=get_config_files()["xl"],
+        )
+        if model.unet.config.in_channels == 9:
+            return ModelType.DIFFUSERS_SDXL_INPAINT
+        else:
+            return ModelType.DIFFUSERS_SDXL
+    except ValueError as e:
+        if "[320, 4, 3, 3]" in str(e):
+            return ModelType.DIFFUSERS_SDXL
+        else:
+            logger.info(f"Ignore non sdxl file: {model_abs_path}")
+            return None
+    except Exception as e:
+        logger.error(f"Failed to load {model_abs_path}: {e}")
+        return None
 
 
 def scan_single_file_diffusion_models(cache_dir) -> List[ModelInfo]:
