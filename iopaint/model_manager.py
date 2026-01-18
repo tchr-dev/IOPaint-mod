@@ -10,6 +10,7 @@ from iopaint.model import models, ControlNet, SD, SDXL
 from iopaint.model.brushnet.brushnet_wrapper import BrushNetWrapper
 from iopaint.model.brushnet.brushnet_xl_wrapper import BrushNetXLWrapper
 from iopaint.model.power_paint.power_paint_v2 import PowerPaintV2
+from iopaint.model.pool import ModelPool
 from iopaint.model.utils import torch_gc, is_local_files_only
 from iopaint.schema import InpaintRequest, ModelInfo, ModelType
 
@@ -24,6 +25,9 @@ class ModelManager:
         self.kwargs = kwargs
         self.available_models: Dict[str, ModelInfo] = {}
         self.scan_models()
+
+        # Initialize model pool for component sharing
+        self.model_pool = ModelPool(max_memory_mb=kwargs.get("max_memory_mb", 16384))
 
         self.enable_controlnet = kwargs.get("enable_controlnet", False)
         controlnet_method = kwargs.get("controlnet_method", None)
@@ -63,6 +67,14 @@ class ModelManager:
             "brushnet_method": self.brushnet_method,
         }
 
+        # Check if we should use component sharing for this model
+        use_pool = self._should_use_model_pool(model_info)
+
+        if use_pool:
+            logger.info(f"Using model pool for {name}")
+            return self.model_pool.get_or_load_model(name, model_info, device, **kwargs)
+
+        # Original loading logic for models that don't support pooling
         if model_info.support_controlnet and self.enable_controlnet:
             return ControlNet(device, **kwargs)
 
@@ -92,6 +104,24 @@ class ModelManager:
 
         raise NotImplementedError(f"Unsupported model: {name}")
 
+    def _should_use_model_pool(self, model_info: ModelInfo) -> bool:
+        """Determine if a model should use the component sharing pool."""
+        # Use pool for SD and SDXL models that support component sharing
+        if model_info.model_type in [
+            ModelType.DIFFUSERS_SD,
+            ModelType.DIFFUSERS_SD_INPAINT,
+            ModelType.DIFFUSERS_SDXL,
+            ModelType.DIFFUSERS_SDXL_INPAINT,
+        ]:
+            return True
+
+        # Check if the model class supports shared components
+        if model_info.name in models:
+            model_cls = models[model_info.name]
+            return hasattr(model_cls, 'get_shared_components')
+
+        return False
+
     @torch.inference_mode()
     def __call__(self, image, mask, config: InpaintRequest):
         """
@@ -116,14 +146,6 @@ class ModelManager:
     def scan_models(self) -> List[ModelInfo]:
         available_models = scan_models()
 
-        # Always add OpenAI-compatible model (API-based, doesn't need local files)
-        openai_model = ModelInfo(
-            name=OPENAI_COMPAT_NAME,
-            path="openai-api",  # Virtual path, no local files
-            model_type=ModelType.OPENAI_COMPAT,
-        )
-        available_models.append(openai_model)
-
         self.available_models = {it.name: it for it in available_models}
         return available_models
 
@@ -142,9 +164,13 @@ class ModelManager:
         ):
             self.controlnet_method = self.available_models[new_name].controlnets[0]
         try:
-            # TODO: enable/disable controlnet without reload model
-            del self.model
-            torch_gc()
+            # Release the old model from pool if it was pooled
+            if self._should_use_model_pool(self.available_models[old_name]):
+                self.model_pool.release_model(old_name)
+            else:
+                # Traditional cleanup for non-pooled models
+                del self.model
+                torch_gc()
 
             self.model = self.init_model(
                 new_name, switch_mps_device(new_name, self.device), **self.kwargs

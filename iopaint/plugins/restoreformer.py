@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from typing import List, Dict
 from loguru import logger
 
 from iopaint.helper import download_model
@@ -42,3 +43,13 @@ class RestoreFormerPlugin(BasePlugin):
         )
         logger.info(f"RestoreFormer output shape: {bgr_output.shape}")
         return bgr_output
+
+    @property
+    def available_models(self) -> List[Dict[str, str]]:
+        """Return list of available RestoreFormer models."""
+        return [{
+            "name": "RestoreFormer",
+            "path": "RestoreFormer",
+            "url": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/RestoreFormer.pth",
+            "md5": "eaeeff6c4a1caa1673977cb374e6f699",
+        }]

@@ -1,6 +1,7 @@
 import os
 import cv2
 import numpy as np
+from typing import List, Dict
 from loguru import logger
 import torch
 from torch.hub import get_dir
@@ -73,6 +74,40 @@ class RemoveBG(BasePlugin):
         )
         self._init_session(new_model_name)
         self.model_name = new_model_name
+
+    @property
+    def available_models(self) -> List[Dict[str, str]]:
+        """Return list of available RemoveBG models."""
+        models = []
+        # Standard rembg models
+        rembg_models = [
+            "u2net", "u2netp", "u2net_human_seg", "u2net_cloth_seg",
+            "silueta", "isnet-general-use", "birefnet-general",
+            "birefnet-general-lite", "birefnet-portrait", "birefnet-dis",
+            "birefnet-hrsod", "birefnet-cod", "birefnet-massive"
+        ]
+        for model_name in rembg_models:
+            models.append({
+                "name": model_name,
+                "path": model_name,
+                "url": f"rembg:{model_name}",  # Virtual URL indicating rembg library
+                "md5": "",  # MD5 not available for rembg models
+            })
+
+        # Bria.ai models
+        bria_models = [
+            ("briaai/RMBG-1.4", "briaai_rmbg_1_4"),
+            ("briaai/RMBG-2.0", "briaai_rmbg_2_0"),
+        ]
+        for model_path, model_name in bria_models:
+            models.append({
+                "name": model_name,
+                "path": model_path,
+                "url": f"bria:{model_path}",  # Virtual URL indicating bria.ai
+                "md5": "",  # MD5 not available
+            })
+
+        return models
 
     @torch.inference_mode()
     def gen_image(self, rgb_np_img, req: RunPluginRequest) -> np.ndarray:

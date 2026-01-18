@@ -1,4 +1,5 @@
 import os
+from typing import List
 
 import PIL.Image
 import cv2
@@ -26,6 +27,19 @@ class SDXL(DiffusionInpaintModel):
     lcm_lora_id = "latent-consistency/lcm-lora-sdxl"
     model_id_or_path = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
 
+    @classmethod
+    def get_shared_components(cls) -> List[str]:
+        """Get list of component types that can be shared for SDXL models."""
+        return [
+            "vae_sdxl",
+            "text_encoder_sdxl",
+        ]
+
+    @classmethod
+    def get_used_components(cls) -> List[str]:
+        """Get list of shared components used by this model instance."""
+        return cls.get_shared_components()
+
     def init_model(self, device: torch.device, **kwargs):
         from diffusers.pipelines import StableDiffusionXLInpaintPipeline
 
@@ -36,6 +50,26 @@ class SDXL(DiffusionInpaintModel):
         else:
             num_in_channels = 9
 
+        model_kwargs = {
+            **kwargs.get("pipe_components", {}),
+            "local_files_only": is_local_files_only(**kwargs),
+        }
+
+        # Check for shared components
+        shared_components = kwargs.get("shared_components", {})
+        if shared_components:
+            logger.info(f"Using shared components for SDXL model: {list(shared_components.keys())}")
+            # Merge shared components into model_kwargs
+            for comp_name, component in shared_components.items():
+                if comp_name == "vae_sdxl" and "vae" not in model_kwargs:
+                    model_kwargs["vae"] = component
+                elif comp_name == "text_encoder_sdxl" and isinstance(component, dict):
+                    # SDXL has dual text encoders
+                    if "text_encoder" not in model_kwargs:
+                        model_kwargs["text_encoder"] = component.get("text_encoder")
+                    if "text_encoder_2" not in model_kwargs:
+                        model_kwargs["text_encoder_2"] = component.get("text_encoder_2")
+
         if os.path.isfile(self.model_id_or_path):
             self.model = StableDiffusionXLInpaintPipeline.from_single_file(
                 self.model_id_or_path,
@@ -43,12 +77,9 @@ class SDXL(DiffusionInpaintModel):
                 num_in_channels=num_in_channels,
                 load_safety_checker=False,
                 original_config_file=get_config_files()['xl'],
+                **model_kwargs,
             )
         else:
-            model_kwargs = {
-                **kwargs.get("pipe_components", {}),
-                "local_files_only": is_local_files_only(**kwargs),
-            }
             if "vae" not in model_kwargs:
                 vae = AutoencoderKL.from_pretrained(
                     "madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch_dtype

@@ -1,8 +1,8 @@
 import cv2
 import numpy as np
+from typing import List, Dict
 from loguru import logger
 
-from iopaint.helper import download_model
 from iopaint.plugins.base_plugin import BasePlugin
 from iopaint.schema import RunPluginRequest
 
@@ -59,3 +59,13 @@ class GFPGANPlugin(BasePlugin):
         # except Exception as error:
         #     print("wrong scale input.", error)
         return bgr_output
+
+    @property
+    def available_models(self) -> List[Dict[str, str]]:
+        """Return list of available GFPGAN models."""
+        return [{
+            "name": "GFPGANv1.4",
+            "path": "GFPGANv1.4",
+            "url": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth",
+            "md5": "94d735072630ab734561130a47bc44f8",
+        }]

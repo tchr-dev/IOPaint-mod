@@ -1,3 +1,4 @@
+from typing import List, Dict
 from loguru import logger
 import numpy as np
 
@@ -28,3 +29,12 @@ class BasePlugin:
 
     def switch_model(self, new_model_name: str):
         ...
+
+    @property
+    def available_models(self) -> List[Dict[str, str]]:
+        """Return list of available models for this plugin.
+
+        Returns:
+            List of dicts with keys: 'name', 'path', 'url', 'md5'
+        """
+        return []

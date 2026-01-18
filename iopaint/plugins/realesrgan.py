@@ -1,4 +1,5 @@
 import math
+from typing import List, Dict
 
 import cv2
 import numpy as np
@@ -387,9 +388,63 @@ class RealESRGANUpscaler(BasePlugin):
         self._init_model(name)
 
     def _init_model(self, name):
-        from .basicsr import RRDBNet
+        model_configs = self._get_model_configs()
+        if name not in model_configs:
+            raise ValueError(f"Unknown RealESRGAN model name: {name}")
+        model_info = model_configs[name]
 
-        REAL_ESRGAN_MODELS = {
+        model_path = download_model(model_info["url"], model_info["model_md5"])
+        logger.info(f"RealESRGAN model path: {model_path}")
+
+        self.model = RealESRGANer(
+            scale=model_info["scale"],
+            model_path=model_path,
+            model=model_info["model"](),
+            half=True if "cuda" in str(self.device) and not self.no_half else False,
+            tile=512,
+            tile_pad=10,
+            pre_pad=10,
+            device=self.device,
+        )
+
+    def switch_model(self, new_model_name: str):
+        if self.model_name == new_model_name:
+            return
+        self._init_model(new_model_name)
+        self.model_name = new_model_name
+
+    def gen_image(self, rgb_np_img, req: RunPluginRequest) -> np.ndarray:
+        bgr_np_img = cv2.cvtColor(rgb_np_img, cv2.COLOR_RGB2BGR)
+        logger.info(f"RealESRGAN input shape: {bgr_np_img.shape}, scale: {req.scale}")
+        result = self.forward(bgr_np_img, req.scale)
+        logger.info(f"RealESRGAN output shape: {result.shape}")
+        return result
+
+    @torch.inference_mode()
+    def forward(self, bgr_np_img, scale: float):
+        # 输出是 BGR
+        upsampled = self.model.enhance(bgr_np_img, outscale=scale)[0]
+        return upsampled
+
+    @property
+    def available_models(self) -> List[Dict[str, str]]:
+        """Return list of available RealESRGAN models."""
+        models = []
+        for model_name, model_info in self._get_model_configs().items():
+            models.append({
+                "name": model_name.value,  # Convert enum to string
+                "path": model_name.value,
+                "url": model_info["url"],
+                "md5": model_info["model_md5"],
+            })
+        return models
+
+    def _get_model_configs(self):
+        """Get model configurations - extracted from _init_model for reuse."""
+        from .basicsr import RRDBNet
+        from .basicsr.arch_util import SRVGGNetCompact
+
+        return {
             RealESRGANModel.realesr_general_x4v3: {
                 "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth",
                 "scale": 4,
@@ -427,42 +482,6 @@ class RealESRGANUpscaler(BasePlugin):
                     num_grow_ch=32,
                     scale=4,
                 ),
-                "model_md5": "d58ce384064ec1591c2ea7b79dbf47ba",
+                "model_md5": "b47a2faad5a5e928a8f9d66ff0b4af1",
             },
         }
-        if name not in REAL_ESRGAN_MODELS:
-            raise ValueError(f"Unknown RealESRGAN model name: {name}")
-        model_info = REAL_ESRGAN_MODELS[name]
-
-        model_path = download_model(model_info["url"], model_info["model_md5"])
-        logger.info(f"RealESRGAN model path: {model_path}")
-
-        self.model = RealESRGANer(
-            scale=model_info["scale"],
-            model_path=model_path,
-            model=model_info["model"](),
-            half=True if "cuda" in str(self.device) and not self.no_half else False,
-            tile=512,
-            tile_pad=10,
-            pre_pad=10,
-            device=self.device,
-        )
-
-    def switch_model(self, new_model_name: str):
-        if self.model_name == new_model_name:
-            return
-        self._init_model(new_model_name)
-        self.model_name = new_model_name
-
-    def gen_image(self, rgb_np_img, req: RunPluginRequest) -> np.ndarray:
-        bgr_np_img = cv2.cvtColor(rgb_np_img, cv2.COLOR_RGB2BGR)
-        logger.info(f"RealESRGAN input shape: {bgr_np_img.shape}, scale: {req.scale}")
-        result = self.forward(bgr_np_img, req.scale)
-        logger.info(f"RealESRGAN output shape: {result.shape}")
-        return result
-
-    @torch.inference_mode()
-    def forward(self, bgr_np_img, scale: float):
-        # 输出是 BGR
-        upsampled = self.model.enhance(bgr_np_img, outscale=scale)[0]
-        return upsampled

@@ -27,6 +27,7 @@ class ModelType(str, Enum):
     DIFFUSERS_SDXL_INPAINT = "diffusers_sdxl_inpaint"
     DIFFUSERS_OTHER = "diffusers_other"
     OPENAI_COMPAT = "openai_compat"  # OpenAI-compatible API (gpt-image-1, dall-e-3, etc.)
+    PLUGIN = "plugin"  # Plugin-provided models (RealESRGAN, GFPGAN, etc.)
     UNKNOWN = "unknown"  # Type not yet determined (deferred detection)
 
 
@@ -35,7 +36,7 @@ class ModelInfo(BaseModel):
     path: str
     model_type: ModelType = ModelType.UNKNOWN
     is_single_file_diffusers: bool = False
-    is_single_file_diffusers: bool = False
+    plugin_name: Optional[str] = None  # Name of plugin that provides this model
 
     @computed_field
     @property

@@ -17,7 +17,7 @@ The model flow follows this path:
 2. On server startup, `scan_models()` discovers which models are locally available
 3. Frontend receives available models via `/api/v1/server_config`
 4. Users select models in the Settings UI
-5. When a model is selected, `ModelManager` initializes it with appropriate wrappers
+5. When a model is selected, `ModelManager` initializes it with appropriate wrappers and component sharing (ModelPool)
 
 ```mermaid
 flowchart TD
@@ -137,16 +137,23 @@ OPENAI_COMPAT = "openai-compat"  # OpenAI-compatible API (gpt-image-1, dall-e-3,
 - **No local files**: Does not require model downloads
 - **API-based**: Routes to OpenAI, DALL-E, or compatible APIs
 - **Budget management**: Includes spending limits (`iopaint/budget/`)
-- **Added manually**: Always appended in `scan_models()` (`iopaint/download.py:322-327`)
+- **Integrated discovery**: Discovered via `scan_inpaint_models()` since OpenAICompatModel returns `is_downloaded() == True`
 
-```python
-openai_model = ModelInfo(
-    name=OPENAI_COMPAT_NAME,
-    path="openai-api",  # Virtual path, no local files
-    model_type=ModelType.OPENAI_COMPAT,
-)
-available_models.append(openai_model)
-```
+### 2.5 Plugin Models
+
+Plugin models are provided by IOPaint's plugin system and are discovered dynamically. These include specialized models for tasks like upscaling, face restoration, and background removal.
+
+**Characteristics:**
+- **Plugin-provided**: Models are managed by individual plugins
+- **Dynamic discovery**: Available models discovered via `available_models` property
+- **Unified access**: All plugin models appear in the same model selection UI
+
+**Supported plugins and their models:**
+- **RealESRGAN**: `realesr-general-x4v3`, `RealESRGAN_x4plus`, `RealESRGAN_x4plus_anime_6B`
+- **RemoveBG**: `u2net`, `u2netp`, `u2net_human_seg`, `briaai/RMBG-1.4`, `briaai/RMBG-2.0`, etc.
+- **InteractiveSeg**: `vit_b`, `vit_l`, `vit_h`, `sam_hq_vit_b`, `sam2_tiny`, etc.
+- **GFPGAN**: `GFPGANv1.4`
+- **RestoreFormer**: `RestoreFormer`
 
 ## 3. Model Discovery & Availability System
 
@@ -160,13 +167,15 @@ flowchart LR
     A --> C[scan_single_file_diffusion_models]
     A --> D[scan_diffusers_models]
     A --> E[scan_converted_diffusers_models]
-    A --> F[Add OpenAI-Compat]
-    B --> G[Combine Results]
-    C --> G
-    D --> G
-    E --> G
-    F --> G
-    G --> H[Return List[ModelInfo]]
+    A --> F[scan_plugin_models]
+    A --> G[Add OpenAI-Compat]
+    B --> H[Combine Results]
+    C --> H
+    D --> H
+    E --> H
+    F --> H
+    G --> H
+    H --> I[Return List[ModelInfo]]
 ```
 
 ### 3.2 Inpaint Models Discovery
@@ -561,9 +570,9 @@ sequenceDiagram
     Frontend->>API: POST /api/v1/switch_model {name: "lama"}
     API->>ModelManager: switch("lama")
     
-    Note over ModelManager: 1. Check if model supports current features<br/>2. Unload current model<br/>3. Initialize new model
-    
-    ModelManager->>ModelManager: torch_gc()  # Free GPU memory
+    Note over ModelManager: 1. Check if model supports current features<br/>2. Release model from pool (if pooled)<br/>3. Initialize new model (with component sharing if available)
+
+    ModelManager->>ModelPool: release_model(old_name)  # Free shared components
     ModelManager->>ModelManager: init_model("lama", device)
     
     ModelManager-->>API: Model loaded

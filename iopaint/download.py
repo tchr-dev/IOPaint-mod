@@ -242,6 +242,20 @@ def scan_inpaint_models(model_dir: Path) -> List[ModelInfo]:
                     model_type=ModelType.INPAINT,
                 )
             )
+        elif not m.is_erase_model and m.is_downloaded():
+            # Include API-based models like OpenAICompatModel
+            # Determine model type based on model name for now
+            if name == "openai-compat":
+                model_type = ModelType.OPENAI_COMPAT
+            else:
+                model_type = ModelType.UNKNOWN
+            res.append(
+                ModelInfo(
+                    name=name,
+                    path=name,
+                    model_type=model_type,
+                )
+            )
     return res
 
 
@@ -353,19 +367,87 @@ def scan_converted_diffusers_models(cache_dir) -> List[ModelInfo]:
     return available_models
 
 
+def scan_plugin_models() -> List[ModelInfo]:
+    """Scan models provided by plugins."""
+    res = []
+
+    # Import plugin classes directly to avoid circular imports
+    try:
+        from iopaint.plugins.realesrgan import RealESRGANUpscaler
+        plugin_instance = RealESRGANUpscaler("realesr-general-x4v3", "cpu", no_half=True)
+        for model_info in plugin_instance.available_models:
+            res.append(ModelInfo(
+                name=model_info["name"],
+                path=model_info.get("path", model_info["name"]),
+                model_type=ModelType.PLUGIN,
+                plugin_name="RealESRGAN",
+            ))
+    except Exception as e:
+        logger.debug(f"Failed to scan RealESRGAN models: {e}")
+
+    try:
+        from iopaint.plugins.gfpgan_plugin import GFPGANPlugin
+        plugin_instance = GFPGANPlugin("cpu")
+        for model_info in plugin_instance.available_models:
+            res.append(ModelInfo(
+                name=model_info["name"],
+                path=model_info.get("path", model_info["name"]),
+                model_type=ModelType.PLUGIN,
+                plugin_name="GFPGAN",
+            ))
+    except Exception as e:
+        logger.debug(f"Failed to scan GFPGAN models: {e}")
+
+    try:
+        from iopaint.plugins.restoreformer import RestoreFormerPlugin
+        plugin_instance = RestoreFormerPlugin("cpu")
+        for model_info in plugin_instance.available_models:
+            res.append(ModelInfo(
+                name=model_info["name"],
+                path=model_info.get("path", model_info["name"]),
+                model_type=ModelType.PLUGIN,
+                plugin_name="RestoreFormer",
+            ))
+    except Exception as e:
+        logger.debug(f"Failed to scan RestoreFormer models: {e}")
+
+    try:
+        from iopaint.plugins.remove_bg import RemoveBG
+        plugin_instance = RemoveBG("u2net", "cpu")
+        for model_info in plugin_instance.available_models:
+            res.append(ModelInfo(
+                name=model_info["name"],
+                path=model_info.get("path", model_info["name"]),
+                model_type=ModelType.PLUGIN,
+                plugin_name="RemoveBG",
+            ))
+    except Exception as e:
+        logger.debug(f"Failed to scan RemoveBG models: {e}")
+
+    try:
+        from iopaint.plugins.interactive_seg import InteractiveSeg
+        from iopaint.schema import InteractiveSegModel
+        plugin_instance = InteractiveSeg(InteractiveSegModel.vit_b, "cpu")
+        for model_info in plugin_instance.available_models:
+            res.append(ModelInfo(
+                name=model_info["name"],
+                path=model_info.get("path", model_info["name"]),
+                model_type=ModelType.PLUGIN,
+                plugin_name="InteractiveSeg",
+            ))
+    except Exception as e:
+        logger.debug(f"Failed to scan InteractiveSeg models: {e}")
+
+    return res
+
+
 def scan_models() -> List[ModelInfo]:
-    model_dir = os.getenv("XDG_CACHE_HOME", DEFAULT_MODEL_DIR)
+    model_dir = Path(os.getenv("XDG_CACHE_HOME", DEFAULT_MODEL_DIR))
     available_models = []
     available_models.extend(scan_inpaint_models(model_dir))
     available_models.extend(scan_single_file_diffusion_models(model_dir))
     available_models.extend(scan_diffusers_models())
     available_models.extend(scan_converted_diffusers_models(model_dir))
-
-    openai_model = ModelInfo(
-        name=OPENAI_COMPAT_NAME,
-        path="openai-api",
-        model_type=ModelType.OPENAI_COMPAT,
-    )
-    available_models.append(openai_model)
+    available_models.extend(scan_plugin_models())
 
     return available_models

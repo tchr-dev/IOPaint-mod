@@ -103,6 +103,8 @@ VITE_BACKEND=http://127.0.0.1:8080
 - `iopaint/model/__init__.py`: Model registry mapping names to classes
 - `iopaint/model_manager.py:ModelManager`: Loads/switches models, handles
   ControlNet/BrushNet/PowerPaintV2
+- `iopaint/model/pool.py:ModelPool`: Manages component-level weight sharing
+  for memory efficiency (VAE, text encoders shared between SD/SDXL models)
 
 **Model Types** (`iopaint/schema.py:ModelType`):
 
@@ -110,6 +112,7 @@ VITE_BACKEND=http://127.0.0.1:8080
 - `DIFFUSERS_SD`/`DIFFUSERS_SD_INPAINT`: Stable Diffusion 1.5
 - `DIFFUSERS_SDXL`/`DIFFUSERS_SDXL_INPAINT`: Stable Diffusion XL
 - `OPENAI_COMPAT`: OpenAI-compatible API models (gpt-image-1, dall-e-3, etc.)
+- `PLUGIN`: Plugin-provided models (RealESRGAN, GFPGAN, RemoveBG, etc.)
 
 **OpenAI Compatibility** (`iopaint/openai_compat/`):
 
@@ -131,8 +134,10 @@ VITE_BACKEND=http://127.0.0.1:8080
 - `InteractiveSeg`: SAM-based interactive segmentation for mask generation
 - `RemoveBG`: Background removal (briaai models)
 - `AnimeSeg`: Anime-specific segmentation
-- `RealESRGAN`: Super resolution upscaling
+- `RealESRGAN`: Super resolution upscaling (3 model variants available)
 - `GFPGAN`/`RestoreFormer`: Face restoration
+
+All plugins implement `available_models` property for unified model discovery.
 
 **Frontend** (`web_app/src/`):
 

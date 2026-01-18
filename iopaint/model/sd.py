@@ -1,3 +1,4 @@
+from typing import List
 import PIL.Image
 import cv2
 import torch
@@ -20,6 +21,19 @@ class SD(DiffusionInpaintModel):
     min_size = 512
     lcm_lora_id = "latent-consistency/lcm-lora-sdv1-5"
 
+    @classmethod
+    def get_shared_components(cls) -> List[str]:
+        """Get list of component types that can be shared for SD 1.5 models."""
+        return [
+            "vae_sd15",
+            "text_encoder_sd15",
+        ]
+
+    @classmethod
+    def get_used_components(cls) -> List[str]:
+        """Get list of shared components used by this model instance."""
+        return cls.get_shared_components()
+
     def init_model(self, device: torch.device, **kwargs):
         from diffusers.pipelines.stable_diffusion import StableDiffusionInpaintPipeline
 
@@ -29,6 +43,17 @@ class SD(DiffusionInpaintModel):
             **kwargs.get("pipe_components", {}),
             "local_files_only": is_local_files_only(**kwargs),
         }
+
+        # Check for shared components
+        shared_components = kwargs.get("shared_components", {})
+        if shared_components:
+            logger.info(f"Using shared components for SD model: {list(shared_components.keys())}")
+            # Merge shared components into model_kwargs
+            for comp_name, component in shared_components.items():
+                if comp_name == "vae_sd15" and "vae" not in model_kwargs:
+                    model_kwargs["vae"] = component
+                elif comp_name == "text_encoder_sd15" and "text_encoder" not in model_kwargs:
+                    model_kwargs["text_encoder"] = component
         disable_nsfw_checker = kwargs.get("disable_nsfw", False) or kwargs.get(
             "cpu_offload", False
         )

@@ -1,5 +1,5 @@
 import hashlib
-from typing import List
+from typing import List, Dict
 
 import numpy as np
 import torch
@@ -144,3 +144,16 @@ class InteractiveSeg(BasePlugin):
         )
         mask = masks[0].astype(np.uint8) * 255
         return mask
+
+    @property
+    def available_models(self) -> List[Dict[str, str]]:
+        """Return list of available interactive segmentation models."""
+        models = []
+        for model_name, model_info in SEGMENT_ANYTHING_MODELS.items():
+            models.append({
+                "name": model_name,
+                "path": model_name,
+                "url": model_info["url"],
+                "md5": model_info["md5"],
+            })
+        return models
