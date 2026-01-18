@@ -606,6 +606,7 @@ type AppState = {
   imageHeight: number
   imageWidth: number
   isInpainting: boolean
+  rendersCountBeforeInpaint: number
   isPluginRunning: boolean
   isAdjustingMask: boolean
   windowSize: Size

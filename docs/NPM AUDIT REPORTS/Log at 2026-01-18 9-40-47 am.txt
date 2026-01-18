@@ -1,0 +1,123 @@
+# npm audit report
+
+@babel/helpers  <7.26.10
+Severity: moderate
+Babel has inefficient RegExp complexity in generated code with .replace when transpiling named capturing groups - https://github.com/advisories/GHSA-968p-4wvh-cqc8
+fix available via `npm audit fix`
+node_modules/@babel/helpers
+
+@babel/runtime  <7.26.10
+Severity: moderate
+Babel has inefficient RegExp complexity in generated code with .replace when transpiling named capturing groups - https://github.com/advisories/GHSA-968p-4wvh-cqc8
+fix available via `npm audit fix`
+node_modules/@babel/runtime
+
+axios  1.0.0 - 1.11.0
+Severity: high
+Server-Side Request Forgery in axios - https://github.com/advisories/GHSA-8hc4-vh64-cxmj
+axios Requests Vulnerable To Possible SSRF and Credential Leakage via Absolute URL - https://github.com/advisories/GHSA-jr5f-v2jv-69x6
+Axios is vulnerable to DoS attack through lack of data size check - https://github.com/advisories/GHSA-4hjh-wcwx-xvwj
+fix available via `npm audit fix`
+node_modules/axios
+
+brace-expansion  1.0.0 - 1.1.11
+brace-expansion Regular Expression Denial of Service vulnerability - https://github.com/advisories/GHSA-v6h2-p8h4-qcjw
+fix available via `npm audit fix`
+node_modules/brace-expansion
+
+braces  <3.0.3
+Severity: high
+Uncontrolled resource consumption in braces - https://github.com/advisories/GHSA-grv7-fg5c-xmjg
+fix available via `npm audit fix`
+node_modules/braces
+
+cross-spawn  7.0.0 - 7.0.4
+Severity: high
+Regular Expression Denial of Service (ReDoS) in cross-spawn - https://github.com/advisories/GHSA-3xgq-45jj-v275
+fix available via `npm audit fix`
+node_modules/cross-spawn
+
+esbuild  <=0.24.2
+Severity: moderate
+esbuild enables any website to send any requests to the development server and read the response - https://github.com/advisories/GHSA-67mh-4wv8-2f99
+fix available via `npm audit fix`
+node_modules/esbuild
+  vite  <=6.1.6
+  Depends on vulnerable versions of esbuild
+  node_modules/vite
+
+fast-loops  <1.1.4
+Severity: high
+robinweser fast-loops vulnerable to prototype pollution - https://github.com/advisories/GHSA-3q56-9cc2-46j4
+fix available via `npm audit fix`
+node_modules/fast-loops
+
+follow-redirects  <=1.15.5
+Severity: moderate
+follow-redirects' Proxy-Authorization header kept across hosts - https://github.com/advisories/GHSA-cxjh-pqwp-8mfp
+Follow Redirects improperly handles URLs in the url.parse() function - https://github.com/advisories/GHSA-jchw-25xp-jwwc
+fix available via `npm audit fix`
+node_modules/follow-redirects
+
+form-data  4.0.0 - 4.0.3
+Severity: critical
+form-data uses unsafe random function in form-data for choosing boundary - https://github.com/advisories/GHSA-fjxv-7rqg-78g4
+fix available via `npm audit fix`
+node_modules/form-data
+
+js-yaml  4.0.0 - 4.1.0
+Severity: moderate
+js-yaml has prototype pollution in merge (<<) - https://github.com/advisories/GHSA-mh29-5h37-fv8m
+fix available via `npm audit fix`
+node_modules/js-yaml
+
+micromatch  <4.0.8
+Severity: moderate
+Regular Expression Denial of Service (ReDoS) in micromatch - https://github.com/advisories/GHSA-952p-6rrq-rcjv
+fix available via `npm audit fix`
+node_modules/micromatch
+
+nanoid  <3.3.8
+Severity: moderate
+Predictable results in nanoid generation when given non-integer values - https://github.com/advisories/GHSA-mwcw-c2x4-8c55
+fix available via `npm audit fix`
+node_modules/nanoid
+
+next  0.9.9 - 14.2.34
+Severity: critical
+Next.js Server-Side Request Forgery in Server Actions - https://github.com/advisories/GHSA-fr5h-rqp8-mj6g
+Next.js Cache Poisoning - https://github.com/advisories/GHSA-gp8f-8m3g-qvj9
+Denial of Service condition in Next.js image optimization - https://github.com/advisories/GHSA-g77x-44xx-532m
+Next.js Allows a Denial of Service (DoS) with Server Actions - https://github.com/advisories/GHSA-7m27-7ghc-44w9
+Information exposure in Next.js dev server due to lack of origin verification - https://github.com/advisories/GHSA-3h52-269p-cp9r
+Next.js Affected by Cache Key Confusion for Image Optimization API Routes - https://github.com/advisories/GHSA-g5qg-72qw-gw5v
+Next.js authorization bypass vulnerability - https://github.com/advisories/GHSA-7gfc-8cq8-jh5f
+Next.js Improper Middleware Redirect Handling Leads to SSRF - https://github.com/advisories/GHSA-4342-x723-ch2f
+Next.js Content Injection Vulnerability for Image Optimization - https://github.com/advisories/GHSA-xv57-4mr9-wg8v
+Next.js Race Condition to Cache Poisoning - https://github.com/advisories/GHSA-qpjv-v59x-3qc4
+Authorization Bypass in Next.js Middleware - https://github.com/advisories/GHSA-f82v-jwr5-mffw
+Next Vulnerable to Denial of Service with Server Components - https://github.com/advisories/GHSA-mwv6-3258-q52c
+Next has a Denial of Service with Server Components - Incomplete Fix Follow-Up - https://github.com/advisories/GHSA-5j59-xgg2-r9c4
+fix available via `npm audit fix`
+node_modules/next
+
+rollup  4.0.0 - 4.22.3
+Severity: high
+DOM Clobbering Gadget found in rollup bundled scripts that leads to XSS - https://github.com/advisories/GHSA-gcx4-mw62-g8wm
+fix available via `npm audit fix`
+node_modules/rollup
+
+
+ws  8.0.0 - 8.17.0
+Severity: high
+ws affected by a DoS when handling a request with many HTTP headers - https://github.com/advisories/GHSA-3h5v-q93c-6h6q
+fix available via `npm audit fix`
+node_modules/ws
+  engine.io-client  0.7.0 || 0.7.8 - 0.7.9 || 6.0.0 - 6.5.3
+  Depends on vulnerable versions of ws
+  node_modules/engine.io-client
+
+18 vulnerabilities (1 low, 7 moderate, 8 high, 2 critical)
+
+To address all issues, run:
+  npm audit fix
