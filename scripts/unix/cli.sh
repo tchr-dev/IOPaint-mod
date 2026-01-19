@@ -21,15 +21,44 @@ use_python_cli() {
     [[ -t 0 && -t 1 ]] && command -v uv >/dev/null 2>&1 && uv run python3 -c "import questionary" >/dev/null 2>&1
 }
 
+has_cmd() {
+    command -v "$1" >/dev/null 2>&1
+}
+
 python_cli_menu() {
     local choice=""
     local menu_type="main"
 
     while true; do
-        # Run Python CLI
-        if ! choice=$(uv run python3 "$SCRIPT_DIR/cli_menu.py" "$menu_type" 2>/dev/null); then
-            # Python CLI failed, fallback to bash
+        # Check if we have a terminal for interactive menu
+        if [[ ! -t 0 ]]; then
             return 1
+        fi
+
+        # Run Python CLI.  When wrapped in command substitution, stdout is no longer a TTY,
+        # causing questionary/prompt_toolkit to disable the interactive UI.  To preserve a
+        # pseudo‑terminal for the Python process while still capturing its output, use `script`.
+        # On macOS, script doesn't support -c, so use a temp file approach.
+        if has_cmd script && has_cmd mktemp; then
+            local temp_file
+            temp_file=$(mktemp) || return 1
+            # Run the Python script inside script to allocate PTY and record output
+            if script -q "$temp_file" uv run python3 "$SCRIPT_DIR/cli_menu.py" "$menu_type"; then
+                # Read the last line from the temp file as the choice
+                choice=$(tail -n 1 "$temp_file" 2>/dev/null | tr -d '\r')
+                rm -f "$temp_file"
+                if [[ -z "$choice" ]]; then
+                    return 1
+                fi
+            else
+                rm -f "$temp_file"
+                return 1
+            fi
+        else
+            # Fallback: run without script.  This may fail if stdout is not a TTY.
+            if ! choice=$(uv run python3 "$SCRIPT_DIR/cli_menu.py" "$menu_type" 2>/dev/null); then
+                return 1
+            fi
         fi
 
         case "$choice" in
@@ -100,22 +129,6 @@ main() {
     if [[ "${1:-}" == "--help" ]]; then
         usage
         exit 0
-    fi
-
-    if [[ ! -t 0 || ! -t 1 ]]; then
-        echo "CLI requires an interactive terminal." >&2
-        echo "" >&2
-        echo "Available commands:" >&2
-        echo "  ./run.sh dev           Start backend + Vite dev server" >&2
-        echo "  ./run.sh prod          Build frontend, copy assets, start backend" >&2
-        echo "  ./run.sh stop          Stop backend/frontend by ports" >&2
-        echo "  ./run.sh build         Build frontend only" >&2
-        echo "  ./run.sh test          Run tests (interactive or named suite)" >&2
-        echo "  ./run.sh jobs          Job utilities (cancel)" >&2
-        echo "  ./run.sh docker        Docker utilities (build)" >&2
-        echo "  ./run.sh publish       Build frontend assets + python dist" >&2
-        echo "  ./run.sh --help        Show all commands" >&2
-        exit 1
     fi
 
     while true; do
