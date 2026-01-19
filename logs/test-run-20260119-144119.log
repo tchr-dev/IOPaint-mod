@@ -1,14 +1,21 @@
-Running: uv run pytest iopaint/tests/test_budget_limits.py iopaint/tests/test_api_error_handling.py
----
+Running: uv run pytest iopaint/tests/test_api_error_handling.py -v
+============================================================
+
 ============================= test session starts ==============================
-platform darwin -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0
+platform darwin -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0 -- /Users/ikovale/Dev/IOPaint-mod/.venv/bin/python3
+cachedir: .pytest_cache
 rootdir: /Users/ikovale/Dev/IOPaint-mod
 configfile: pyproject.toml
 plugins: anyio-4.12.1, loguru-0.4.0
-collected 10 items
+collecting ... collected 7 items
 
-iopaint/tests/test_budget_limits.py ...                                  [ 30%]
-iopaint/tests/test_api_error_handling.py .......                         [100%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_daily PASSED [ 14%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_monthly PASSED [ 28%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_session PASSED [ 42%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_valid_values PASSED [ 57%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_partial_update PASSED [ 71%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_openai_without_api_key PASSED [ 85%]
+iopaint/tests/test_api_error_handling.py::TestBudgetStatusSerialization::test_budget_status_endpoint_exists PASSED [100%]
 
 =============================== warnings summary ===============================
 iopaint/schema.py:426
@@ -31,23 +38,22 @@ iopaint/storage/models.py:106
   /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:106: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class HistorySnapshot(BaseModel):
 
-iopaint/tests/test_budget_limits.py::test_budget_limits_override
 iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_valid_values
 iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_partial_update
 iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_partial_update
   /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/storage.py:531: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
     datetime.utcnow().isoformat(),
 
-iopaint/tests/test_budget_limits.py::test_budget_limits_override
 iopaint/tests/test_api_error_handling.py::TestBudgetStatusSerialization::test_budget_status_endpoint_exists
   /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/storage.py:334: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
-iopaint/tests/test_budget_limits.py::test_budget_limits_override
 iopaint/tests/test_api_error_handling.py::TestBudgetStatusSerialization::test_budget_status_endpoint_exists
   /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/storage.py:360: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
     month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-======================= 10 passed, 13 warnings in 5.05s ========================
----
+======================== 7 passed, 10 warnings in 3.63s ========================
+
+============================================================
+Return code: 0

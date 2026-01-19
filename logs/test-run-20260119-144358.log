@@ -1,0 +1,89 @@
+Running: uv run pytest -k "budget" -v
+============================================================
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0 -- /Users/ikovale/Dev/IOPaint-mod/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/ikovale/Dev/IOPaint-mod
+configfile: pyproject.toml
+plugins: anyio-4.12.1, loguru-0.4.0
+collecting ... collected 312 items / 299 deselected / 13 selected
+
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_daily PASSED [  7%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_monthly PASSED [ 15%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_session PASSED [ 23%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_valid_values PASSED [ 30%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_partial_update PASSED [ 38%]
+iopaint/tests/test_api_error_handling.py::TestBudgetStatusSerialization::test_budget_status_endpoint_exists PASSED [ 46%]
+iopaint/tests/test_budget_guard.py::test_budget_guard_blocks_session_cap PASSED [ 53%]
+iopaint/tests/test_budget_guard.py::test_budget_guard_raises_on_cap_exceeded PASSED [ 61%]
+iopaint/tests/test_budget_guard.py::test_budget_guard_rate_limit PASSED  [ 69%]
+iopaint/tests/test_budget_limits.py::test_budget_limits_override PASSED  [ 76%]
+iopaint/tests/test_budget_limits.py::test_budget_status_json_serializable PASSED [ 84%]
+iopaint/tests/test_budget_limits.py::test_budget_status_mixed_limits PASSED [ 92%]
+iopaint/tests/test_openai_protocol_integration.py::test_openai_protocol_budget_block PASSED [100%]
+
+=============================== warnings summary ===============================
+iopaint/helper.py:2
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/helper.py:2: DeprecationWarning: 'imghdr' is deprecated and slated for removal in Python 3.13
+    import imghdr
+
+iopaint/schema.py:426
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/schema.py:426: PydanticDeprecatedSince212: Using `@model_validator` with mode='after' on a classmethod is deprecated. Instead, use an instance method. See the documentation at https://docs.pydantic.dev/2.12/concepts/validators/#model-after-validator. Deprecated in Pydantic V2.12 to be removed in V3.0.
+    @model_validator(mode="after")
+
+iopaint/storage/models.py:57
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:57: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class GenerationJob(BaseModel):
+
+iopaint/storage/models.py:85
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:85: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ImageRecord(BaseModel):
+
+iopaint/storage/models.py:106
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:106: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HistorySnapshot(BaseModel):
+
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_valid_values
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_partial_update
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_partial_update
+iopaint/tests/test_budget_limits.py::test_budget_limits_override
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/storage.py:531: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    datetime.utcnow().isoformat(),
+
+iopaint/tests/test_api_error_handling.py::TestBudgetStatusSerialization::test_budget_status_endpoint_exists
+iopaint/tests/test_budget_limits.py::test_budget_limits_override
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/storage.py:334: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+iopaint/tests/test_api_error_handling.py::TestBudgetStatusSerialization::test_budget_status_endpoint_exists
+iopaint/tests/test_budget_limits.py::test_budget_limits_override
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/storage.py:360: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+iopaint/tests/test_budget_guard.py::test_budget_guard_rate_limit
+iopaint/tests/test_openai_protocol_integration.py::test_openai_protocol_budget_block
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/storage.py:421: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+iopaint/tests/test_budget_guard.py::test_budget_guard_rate_limit
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/guard.py:153: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    elapsed = (datetime.utcnow() - last_request).total_seconds()
+
+iopaint/tests/test_openai_protocol_integration.py::test_openai_protocol_budget_block
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/history.py:261: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+iopaint/tests/test_openai_protocol_integration.py::test_openai_protocol_budget_block
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/images.py:116: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+iopaint/tests/test_openai_protocol_integration.py::test_openai_protocol_budget_block
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/history.py:327: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    params.append(datetime.utcnow().isoformat())
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============== 13 passed, 299 deselected, 19 warnings in 3.87s ================
+
+============================================================
+Return code: 0

@@ -1,5 +1,6 @@
 Running: uv run pytest iopaint/tests/test_api_error_handling.py -v
----
+============================================================
+
 ============================= test session starts ==============================
 platform darwin -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0 -- /Users/ikovale/Dev/IOPaint-mod/.venv/bin/python3
 cachedir: .pytest_cache
@@ -52,5 +53,7 @@ iopaint/tests/test_api_error_handling.py::TestBudgetStatusSerialization::test_bu
     month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-======================== 7 passed, 10 warnings in 4.62s ========================
----
+======================== 7 passed, 10 warnings in 3.80s ========================
+
+============================================================
+Return code: 0
