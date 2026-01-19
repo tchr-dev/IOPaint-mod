@@ -121,7 +121,7 @@ export default function Editor(props: EditorProps) {
     useState<HTMLImageElement | null>(null)
   const [isPanning, setIsPanning] = useState<boolean>(false)
 
-  const [setScale] = useState<((scale: number) => void)>(() => {})
+  const [scale, setScale] = useState<number>(1.0)
   const [panned, setPanned] = useState<boolean>(false)
   const [minScale, setMinScale] = useState<number>(1.0)
   const windowCenterX = windowSize.width / 2
@@ -720,11 +720,7 @@ export default function Editor(props: EditorProps) {
   )
 
   const getCurScale = (): number => {
-    let s = minScale
-    if (viewportRef.current?.instance?.transformState.scale !== undefined) {
-      s = viewportRef.current?.instance?.transformState.scale
-    }
-    return s!
+    return scale
   }
 
   const getBrushStyle = (_x: number, _y: number) => {
