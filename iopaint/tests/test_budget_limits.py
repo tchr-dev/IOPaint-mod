@@ -17,7 +17,9 @@ def test_budget_limits_override(tmp_path):
     storage = BudgetStorage(config)
     guard = BudgetGuard(config, storage)
 
-    storage.set_budget_limits(daily_cap_usd=2.0, monthly_cap_usd=20.0, session_cap_usd=1.0)
+    storage.set_budget_limits(
+        daily_cap_usd=2.0, monthly_cap_usd=20.0, session_cap_usd=1.0
+    )
 
     status = guard.get_status("session-1")
     assert status.daily.cap_usd == 2.0

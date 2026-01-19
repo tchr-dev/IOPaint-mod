@@ -24,7 +24,7 @@ def test_sd_match_histograms(device, sampler):
         sd_guidance_scale=7.5,
         sd_lcm_lora=False,
         sd_match_histograms=True,
-        sd_sampler=sampler
+        sd_sampler=sampler,
     )
 
     assert_equal(

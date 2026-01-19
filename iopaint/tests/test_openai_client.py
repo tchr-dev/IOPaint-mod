@@ -7,7 +7,11 @@ import pytest
 from iopaint.openai_compat.client import OpenAICompatClient
 from iopaint.openai_compat.config import OpenAIConfig
 from iopaint.openai_compat.errors import ErrorStatus, OpenAIError
-from iopaint.openai_compat.models import GenerateImageRequest, ImageSize, RefinePromptRequest
+from iopaint.openai_compat.models import (
+    GenerateImageRequest,
+    ImageSize,
+    RefinePromptRequest,
+)
 
 
 def _make_client(handler) -> OpenAICompatClient:

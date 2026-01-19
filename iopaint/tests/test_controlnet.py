@@ -4,13 +4,11 @@ from iopaint.const import SD_CONTROLNET_CHOICES
 from iopaint.tests.utils import current_dir, check_device, get_config, assert_equal
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-from pathlib import Path
 
 import pytest
 import torch
 
 from iopaint.model_manager import ModelManager
-from iopaint.schema import HDStrategy, SDSampler
 
 
 model_name = "runwayml/stable-diffusion-inpainting"
@@ -77,7 +75,7 @@ def test_controlnet_switch(device):
         f"controlnet_switch_canny_to_depth_device_{device}.png",
         img_p=current_dir / "overture-creations-5sI6fQgYIuo.png",
         mask_p=current_dir / "overture-creations-5sI6fQgYIuo_mask.png",
-        fx=1.2
+        fx=1.2,
     )
 
 

@@ -75,15 +75,11 @@ def test_history_snapshots_api(monkeypatch, tmp_path):
     assert data["total"] == 1
     assert data["snapshots"][0]["id"] == snapshot_id
 
-    res = client.get(
-        f"/api/v1/history/snapshots/{snapshot_id}", headers=headers
-    )
+    res = client.get(f"/api/v1/history/snapshots/{snapshot_id}", headers=headers)
     assert res.status_code == 200
     assert res.json()["id"] == snapshot_id
 
-    res = client.delete(
-        f"/api/v1/history/snapshots/{snapshot_id}", headers=headers
-    )
+    res = client.delete(f"/api/v1/history/snapshots/{snapshot_id}", headers=headers)
     assert res.status_code == 200
     assert res.json()["deleted"] is True
 

@@ -1,6 +1,5 @@
 import os
 
-from loguru import logger
 
 from iopaint.tests.utils import check_device, get_config, assert_equal, current_dir
 
@@ -73,7 +72,6 @@ def test_runway_sd_lcm_lora_low_mem(device, sampler):
         img_p=current_dir / "overture-creations-5sI6fQgYIuo.png",
         mask_p=current_dir / "overture-creations-5sI6fQgYIuo_mask.png",
     )
-
 
 
 @pytest.mark.parametrize("device", ["cuda", "mps", "cpu"])

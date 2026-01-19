@@ -30,7 +30,7 @@ class DummyOpenAIClient:
 
     def edit_image(self, request):
         self.last_edit_request = request
-        return b"result"
+        return _make_png_bytes()
 
     def create_variation(self, request):
         self.last_variation_request = request
@@ -104,6 +104,17 @@ def _make_test_client(monkeypatch, tmp_path, with_openai=False):
         monkeypatch.delenv("AIE_OPENAI_API_KEY", raising=False)
     monkeypatch.setattr(Api, "_build_model_manager", lambda self: SimpleNamespace())
     monkeypatch.setattr(Api, "_build_plugins", lambda self: {})
+    from iopaint.storage.models import ImageRecord
+    from datetime import datetime
+    dummy_record = ImageRecord(
+        id="dummy",
+        job_id="dummy",
+        path="dummy.png",
+        width=256,
+        height=256,
+        created_at=datetime.now(),
+    )
+    monkeypatch.setattr(api.image_storage, "save_image", lambda *args, **kwargs: dummy_record)
 
     app = FastAPI()
     api = Api(app, _make_api_config())
@@ -190,7 +201,9 @@ def test_openai_background_remove_prompt_uses_edit(monkeypatch, tmp_path):
     assert res.status_code == 200
     assert res.content == b"result"
     assert api.openai_client.last_edit_request is not None
-    assert api.openai_client.last_edit_request.prompt.startswith("Remove the background")
+    assert api.openai_client.last_edit_request.prompt.startswith(
+        "Remove the background"
+    )
 
 
 def test_openai_variations_with_dummy_client(monkeypatch, tmp_path):

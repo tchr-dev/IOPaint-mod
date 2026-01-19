@@ -1,0 +1,7 @@
+Running: cd web_app && npm run lint
+---
+
+> web_app@0.0.0 lint
+> eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
+
+---

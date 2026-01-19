@@ -169,5 +169,5 @@ def test_mi_gan(device, strategy):
         img_p=current_dir / "overture-creations-5sI6fQgYIuo.png",
         mask_p=current_dir / "overture-creations-5sI6fQgYIuo_mask.png",
         fx=1.5,
-        fy=1.7
+        fy=1.7,
     )

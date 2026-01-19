@@ -4,9 +4,13 @@ from iopaint.openai_compat.models import OpenAIModelInfo, ImageSize, ImageQualit
 
 def test_capabilities_normalization():
     models = [
-        OpenAIModelInfo(id="openai/gpt-image-1", object="model", created=1, owned_by="openai"),
+        OpenAIModelInfo(
+            id="openai/gpt-image-1", object="model", created=1, owned_by="openai"
+        ),
         OpenAIModelInfo(id="dall-e-2", object="model", created=1, owned_by="openai"),
-        OpenAIModelInfo(id="openai/dall-e-3", object="model", created=1, owned_by="openai"),
+        OpenAIModelInfo(
+            id="openai/dall-e-3", object="model", created=1, owned_by="openai"
+        ),
         OpenAIModelInfo(id="gpt-4o", object="model", created=1, owned_by="openai"),
     ]
 

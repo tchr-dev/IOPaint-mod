@@ -1,0 +1,357 @@
+Running: uv run pytest iopaint/tests/test_api_error_handling.py -v
+---
+============================= test session starts ==============================
+platform darwin -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0 -- /Users/ikovale/Dev/IOPaint-mod/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/ikovale/Dev/IOPaint-mod
+configfile: pyproject.toml
+plugins: anyio-4.12.1, loguru-0.4.0
+collecting ... collected 12 items
+
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_daily PASSED [  8%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_monthly PASSED [ 16%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_session PASSED [ 25%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_valid_values PASSED [ 33%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_partial_update PASSED [ 41%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_invalid_model FAILED [ 50%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_openai_without_api_key FAILED [ 58%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_model_value_error FAILED [ 66%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_model_unexpected_error FAILED [ 75%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_same_model_noop FAILED [ 83%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_successful_model_switch FAILED [ 91%]
+iopaint/tests/test_api_error_handling.py::TestBudgetStatusSerialization::test_budget_status_unlimited_json_serializable FAILED [100%]
+
+=================================== FAILURES ===================================
+_________ TestModelSwitchingErrorHandling.test_switch_to_invalid_model _________
+
+self = <starlette.datastructures.State object at 0x12473acf0>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+>           return self._state[key]
+                   ^^^^^^^^^^^^^^^^
+E           KeyError: 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:685: KeyError
+
+During handling of the above exception, another exception occurred:
+
+self = <iopaint.tests.test_api_error_handling.TestModelSwitchingErrorHandling object at 0x1242dac90>
+test_client = <starlette.testclient.TestClient object at 0x12473b080>
+
+    def test_switch_to_invalid_model(self, test_client):
+        """Test switching to a non-existent model returns 400."""
+        # Mock model manager to raise NotImplementedError
+>       test_client.app.state.api.model_manager.switch.side_effect = NotImplementedError(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+            "Unsupported model: nonexistent-model"
+        )
+
+iopaint/tests/test_api_error_handling.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.datastructures.State object at 0x12473acf0>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+            return self._state[key]
+        except KeyError:
+            message = "'{}' object has no attribute '{}'"
+>           raise AttributeError(message.format(self.__class__.__name__, key))
+E           AttributeError: 'State' object has no attribute 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:688: AttributeError
+---------------------------- Captured stderr setup -----------------------------
+2026-01-19 10:08:58.159 | INFO     | iopaint.api:__init__:244 - Budget safety enabled: BudgetConfig(daily_cap=$10.00, monthly_cap=$100.00, session_cap=$5.00, rate_limit=10s, dedupe=True)
+2026-01-19 10:08:58.162 | INFO     | iopaint.api:__init__:266 - Storage initialized: /private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-5/test_switch_to_invalid_model0/budget_data
+____ TestModelSwitchingErrorHandling.test_switch_to_openai_without_api_key _____
+
+self = <starlette.datastructures.State object at 0x1246ff200>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+>           return self._state[key]
+                   ^^^^^^^^^^^^^^^^
+E           KeyError: 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:685: KeyError
+
+During handling of the above exception, another exception occurred:
+
+self = <iopaint.tests.test_api_error_handling.TestModelSwitchingErrorHandling object at 0x1242daf90>
+test_client = <starlette.testclient.TestClient object at 0x1246abdd0>
+
+    def test_switch_to_openai_without_api_key(self, test_client):
+        """Test switching to openai-compat without API key returns 400."""
+        # Mock openai_config to be disabled (no API key)
+>       test_client.app.state.api.openai_config = OpenAIConfig(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+            api_key="", base_url="https://api.test/v1"
+        )
+
+iopaint/tests/test_api_error_handling.py:196: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.datastructures.State object at 0x1246ff200>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+            return self._state[key]
+        except KeyError:
+            message = "'{}' object has no attribute '{}'"
+>           raise AttributeError(message.format(self.__class__.__name__, key))
+E           AttributeError: 'State' object has no attribute 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:688: AttributeError
+---------------------------- Captured stderr setup -----------------------------
+2026-01-19 10:08:58.281 | INFO     | iopaint.api:__init__:244 - Budget safety enabled: BudgetConfig(daily_cap=$10.00, monthly_cap=$100.00, session_cap=$5.00, rate_limit=10s, dedupe=True)
+2026-01-19 10:08:58.284 | INFO     | iopaint.api:__init__:266 - Storage initialized: /private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-5/test_switch_to_openai_without_0/budget_data
+________ TestModelSwitchingErrorHandling.test_switch_model_value_error _________
+
+self = <starlette.datastructures.State object at 0x124632e10>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+>           return self._state[key]
+                   ^^^^^^^^^^^^^^^^
+E           KeyError: 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:685: KeyError
+
+During handling of the above exception, another exception occurred:
+
+self = <iopaint.tests.test_api_error_handling.TestModelSwitchingErrorHandling object at 0x1242db290>
+test_client = <starlette.testclient.TestClient object at 0x12453ade0>
+
+    def test_switch_model_value_error(self, test_client):
+        """Test that ValueError during model switching returns 400."""
+>       test_client.app.state.api.model_manager.switch.side_effect = ValueError(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+            "Invalid model configuration"
+        )
+
+iopaint/tests/test_api_error_handling.py:211: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.datastructures.State object at 0x124632e10>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+            return self._state[key]
+        except KeyError:
+            message = "'{}' object has no attribute '{}'"
+>           raise AttributeError(message.format(self.__class__.__name__, key))
+E           AttributeError: 'State' object has no attribute 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:688: AttributeError
+---------------------------- Captured stderr setup -----------------------------
+2026-01-19 10:08:58.315 | INFO     | iopaint.api:__init__:244 - Budget safety enabled: BudgetConfig(daily_cap=$10.00, monthly_cap=$100.00, session_cap=$5.00, rate_limit=10s, dedupe=True)
+2026-01-19 10:08:58.317 | INFO     | iopaint.api:__init__:266 - Storage initialized: /private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-5/test_switch_model_value_error0/budget_data
+______ TestModelSwitchingErrorHandling.test_switch_model_unexpected_error ______
+
+self = <starlette.datastructures.State object at 0x1244f7d10>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+>           return self._state[key]
+                   ^^^^^^^^^^^^^^^^
+E           KeyError: 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:685: KeyError
+
+During handling of the above exception, another exception occurred:
+
+self = <iopaint.tests.test_api_error_handling.TestModelSwitchingErrorHandling object at 0x1242db590>
+test_client = <starlette.testclient.TestClient object at 0x124603440>
+
+    def test_switch_model_unexpected_error(self, test_client):
+        """Test that unexpected errors during model switching return 500."""
+>       test_client.app.state.api.model_manager.switch.side_effect = RuntimeError(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+            "Unexpected model loading error"
+        )
+
+iopaint/tests/test_api_error_handling.py:225: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.datastructures.State object at 0x1244f7d10>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+            return self._state[key]
+        except KeyError:
+            message = "'{}' object has no attribute '{}'"
+>           raise AttributeError(message.format(self.__class__.__name__, key))
+E           AttributeError: 'State' object has no attribute 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:688: AttributeError
+---------------------------- Captured stderr setup -----------------------------
+2026-01-19 10:08:58.348 | INFO     | iopaint.api:__init__:244 - Budget safety enabled: BudgetConfig(daily_cap=$10.00, monthly_cap=$100.00, session_cap=$5.00, rate_limit=10s, dedupe=True)
+2026-01-19 10:08:58.351 | INFO     | iopaint.api:__init__:266 - Storage initialized: /private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-5/test_switch_model_unexpected_e0/budget_data
+________ TestModelSwitchingErrorHandling.test_switch_to_same_model_noop ________
+
+self = <starlette.datastructures.State object at 0x1246c5340>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+>           return self._state[key]
+                   ^^^^^^^^^^^^^^^^
+E           KeyError: 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:685: KeyError
+
+During handling of the above exception, another exception occurred:
+
+self = <iopaint.tests.test_api_error_handling.TestModelSwitchingErrorHandling object at 0x1242db890>
+test_client = <starlette.testclient.TestClient object at 0x1245c4080>
+
+    def test_switch_to_same_model_noop(self, test_client):
+        """Test switching to the same model is a no-op."""
+>       test_client.app.state.api.model_manager.name = "lama"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:240: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.datastructures.State object at 0x1246c5340>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+            return self._state[key]
+        except KeyError:
+            message = "'{}' object has no attribute '{}'"
+>           raise AttributeError(message.format(self.__class__.__name__, key))
+E           AttributeError: 'State' object has no attribute 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:688: AttributeError
+---------------------------- Captured stderr setup -----------------------------
+2026-01-19 10:08:58.382 | INFO     | iopaint.api:__init__:244 - Budget safety enabled: BudgetConfig(daily_cap=$10.00, monthly_cap=$100.00, session_cap=$5.00, rate_limit=10s, dedupe=True)
+2026-01-19 10:08:58.385 | INFO     | iopaint.api:__init__:266 - Storage initialized: /private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-5/test_switch_to_same_model_noop0/budget_data
+_________ TestModelSwitchingErrorHandling.test_successful_model_switch _________
+
+self = <starlette.datastructures.State object at 0x124892cc0>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+>           return self._state[key]
+                   ^^^^^^^^^^^^^^^^
+E           KeyError: 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:685: KeyError
+
+During handling of the above exception, another exception occurred:
+
+self = <iopaint.tests.test_api_error_handling.TestModelSwitchingErrorHandling object at 0x1242dbb90>
+test_client = <starlette.testclient.TestClient object at 0x1244f7e90>
+
+    def test_successful_model_switch(self, test_client):
+        """Test successful model switching."""
+        # Setup mock for successful switch
+>       test_client.app.state.api.model_manager.switch.side_effect = None
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:255: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.datastructures.State object at 0x124892cc0>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+            return self._state[key]
+        except KeyError:
+            message = "'{}' object has no attribute '{}'"
+>           raise AttributeError(message.format(self.__class__.__name__, key))
+E           AttributeError: 'State' object has no attribute 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:688: AttributeError
+---------------------------- Captured stderr setup -----------------------------
+2026-01-19 10:08:58.416 | INFO     | iopaint.api:__init__:244 - Budget safety enabled: BudgetConfig(daily_cap=$10.00, monthly_cap=$100.00, session_cap=$5.00, rate_limit=10s, dedupe=True)
+2026-01-19 10:08:58.419 | INFO     | iopaint.api:__init__:266 - Storage initialized: /private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-5/test_successful_model_switch0/budget_data
+_ TestBudgetStatusSerialization.test_budget_status_unlimited_json_serializable _
+
+self = <starlette.datastructures.State object at 0x12494bc80>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+>           return self._state[key]
+                   ^^^^^^^^^^^^^^^^
+E           KeyError: 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:685: KeyError
+
+During handling of the above exception, another exception occurred:
+
+self = <iopaint.tests.test_api_error_handling.TestBudgetStatusSerialization object at 0x1242dbf20>
+test_client = <starlette.testclient.TestClient object at 0x124964b60>
+
+    def test_budget_status_unlimited_json_serializable(self, test_client):
+        """Test that unlimited budget status is JSON serializable."""
+        # Mock budget guard to return unlimited budgets
+        mock_status = Mock()
+        mock_status.daily.remaining_usd = 999999.99
+        mock_status.daily.is_unlimited = True
+        mock_status.monthly.remaining_usd = 999999.99
+        mock_status.monthly.is_unlimited = True
+        mock_status.session.remaining_usd = 999999.99
+        mock_status.session.is_unlimited = True
+        mock_status.status = "ok"
+    
+>       test_client.app.state.api.budget_guard.get_status.return_value = mock_status
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:283: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.datastructures.State object at 0x12494bc80>, key = 'api'
+
+    def __getattr__(self, key: Any) -> Any:
+        try:
+            return self._state[key]
+        except KeyError:
+            message = "'{}' object has no attribute '{}'"
+>           raise AttributeError(message.format(self.__class__.__name__, key))
+E           AttributeError: 'State' object has no attribute 'api'
+
+.venv/lib/python3.12/site-packages/starlette/datastructures.py:688: AttributeError
+---------------------------- Captured stderr setup -----------------------------
+2026-01-19 10:08:58.450 | INFO     | iopaint.api:__init__:244 - Budget safety enabled: BudgetConfig(daily_cap=$10.00, monthly_cap=$100.00, session_cap=$5.00, rate_limit=10s, dedupe=True)
+2026-01-19 10:08:58.454 | INFO     | iopaint.api:__init__:266 - Storage initialized: /private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-5/test_budget_status_unlimited_j0/budget_data
+=============================== warnings summary ===============================
+iopaint/schema.py:426
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/schema.py:426: PydanticDeprecatedSince212: Using `@model_validator` with mode='after' on a classmethod is deprecated. Instead, use an instance method. See the documentation at https://docs.pydantic.dev/2.12/concepts/validators/#model-after-validator. Deprecated in Pydantic V2.12 to be removed in V3.0.
+    @model_validator(mode="after")
+
+iopaint/helper.py:2
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/helper.py:2: DeprecationWarning: 'imghdr' is deprecated and slated for removal in Python 3.13
+    import imghdr
+
+iopaint/storage/models.py:57
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:57: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class GenerationJob(BaseModel):
+
+iopaint/storage/models.py:85
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:85: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ImageRecord(BaseModel):
+
+iopaint/storage/models.py:106
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:106: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HistorySnapshot(BaseModel):
+
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_valid_values
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_partial_update
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_partial_update
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/storage.py:531: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    datetime.utcnow().isoformat(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_invalid_model
+FAILED iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_openai_without_api_key
+FAILED iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_model_value_error
+FAILED iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_model_unexpected_error
+FAILED iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_same_model_noop
+FAILED iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_successful_model_switch
+FAILED iopaint/tests/test_api_error_handling.py::TestBudgetStatusSerialization::test_budget_status_unlimited_json_serializable
+=================== 7 failed, 5 passed, 8 warnings in 3.87s ====================
+---
+Command failed with status 1

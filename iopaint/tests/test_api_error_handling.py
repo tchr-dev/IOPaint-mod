@@ -1,7 +1,8 @@
 """Tests for API error handling fixes."""
+
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from fastapi import FastAPI
@@ -9,7 +10,6 @@ from fastapi.testclient import TestClient
 
 from iopaint.api import Api
 from iopaint.budget.config import BudgetConfig
-from iopaint.openai_compat.config import OpenAIConfig
 from iopaint.schema import (
     ApiConfig,
     Device,
@@ -101,8 +101,7 @@ class TestBudgetLimitsValidation:
     def test_update_budget_limits_negative_daily(self, test_client):
         """Test that negative daily budget cap is rejected."""
         response = test_client.post(
-            "/api/v1/budget/limits",
-            json={"daily_cap_usd": -5.0}
+            "/api/v1/budget/limits", json={"daily_cap_usd": -5.0}
         )
 
         assert response.status_code == 400
@@ -111,8 +110,7 @@ class TestBudgetLimitsValidation:
     def test_update_budget_limits_negative_monthly(self, test_client):
         """Test that negative monthly budget cap is rejected."""
         response = test_client.post(
-            "/api/v1/budget/limits",
-            json={"monthly_cap_usd": -10.0}
+            "/api/v1/budget/limits", json={"monthly_cap_usd": -10.0}
         )
 
         assert response.status_code == 400
@@ -121,8 +119,7 @@ class TestBudgetLimitsValidation:
     def test_update_budget_limits_negative_session(self, test_client):
         """Test that negative session budget cap is rejected."""
         response = test_client.post(
-            "/api/v1/budget/limits",
-            json={"session_cap_usd": -1.0}
+            "/api/v1/budget/limits", json={"session_cap_usd": -1.0}
         )
 
         assert response.status_code == 400
@@ -135,8 +132,8 @@ class TestBudgetLimitsValidation:
             json={
                 "daily_cap_usd": 15.0,
                 "monthly_cap_usd": 150.0,
-                "session_cap_usd": 7.5
-            }
+                "session_cap_usd": 7.5,
+            },
         )
 
         assert response.status_code == 200
@@ -153,14 +150,13 @@ class TestBudgetLimitsValidation:
             json={
                 "daily_cap_usd": 10.0,
                 "monthly_cap_usd": 100.0,
-                "session_cap_usd": 5.0
-            }
+                "session_cap_usd": 5.0,
+            },
         )
 
         # Update only daily cap
         response = test_client.post(
-            "/api/v1/budget/limits",
-            json={"daily_cap_usd": 20.0}
+            "/api/v1/budget/limits", json={"daily_cap_usd": 20.0}
         )
 
         assert response.status_code == 200
@@ -176,17 +172,12 @@ class TestModelSwitchingErrorHandling:
 
     def test_switch_to_openai_without_api_key(self, test_client):
         """Test switching to openai-compat without API key returns 400."""
-        response = test_client.post(
-            "/api/v1/model",
-            json={"name": "openai-compat"}
-        )
+        response = test_client.post("/api/v1/model", json={"name": "openai-compat"})
 
         # Without API key configured, this should fail
         assert response.status_code in [400, 500]
         if response.status_code == 400:
             assert "OpenAI API key" in response.json()["detail"]
-
-
 
 
 class TestBudgetStatusSerialization:

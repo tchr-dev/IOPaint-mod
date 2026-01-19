@@ -1,5 +1,3 @@
-import os
-
 from iopaint.services.config import ExternalImageServiceConfig
 
 

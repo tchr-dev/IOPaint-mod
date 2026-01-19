@@ -33,13 +33,13 @@ def test_anytext(device):
         sd_steps=sd_steps,
         sd_guidance_scale=9.0,
         sd_seed=66273235,
-        sd_match_histograms=True
+        sd_match_histograms=True,
     )
 
     assert_equal(
         model,
         cfg,
-        f"anytext.png",
+        "anytext.png",
         img_p=current_dir / "anytext_ref.jpg",
         mask_p=current_dir / "anytext_mask.jpg",
     )

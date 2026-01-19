@@ -1,0 +1,38 @@
+Running: uv run pytest iopaint/tests/test_budget_limits.py -v
+---
+============================= test session starts ==============================
+platform darwin -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0 -- /Users/ikovale/Dev/IOPaint-mod/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/ikovale/Dev/IOPaint-mod
+configfile: pyproject.toml
+plugins: anyio-4.12.1, loguru-0.4.0
+collecting ... collected 3 items
+
+iopaint/tests/test_budget_limits.py::test_budget_limits_override PASSED  [ 33%]
+iopaint/tests/test_budget_limits.py::test_budget_status_json_serializable PASSED [ 66%]
+iopaint/tests/test_budget_limits.py::test_budget_status_mixed_limits PASSED [100%]
+
+=============================== warnings summary ===============================
+iopaint/tests/test_budget_limits.py::test_budget_limits_override
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/storage.py:531: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    datetime.utcnow().isoformat(),
+
+iopaint/tests/test_budget_limits.py::test_budget_limits_override
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/storage.py:334: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+iopaint/tests/test_budget_limits.py::test_budget_limits_override
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/budget/storage.py:360: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+iopaint/tests/test_budget_limits.py::test_budget_status_json_serializable
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/tests/test_budget_limits.py:55: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    json_str = json.dumps(status.dict())
+
+iopaint/tests/test_budget_limits.py::test_budget_status_mixed_limits
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/tests/test_budget_limits.py:86: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    json_str = json.dumps(status.dict())
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 3 passed, 5 warnings in 0.18s =========================
+---

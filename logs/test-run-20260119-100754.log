@@ -1,0 +1,127 @@
+Running: uv run pytest iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_daily -v
+---
+============================= test session starts ==============================
+platform darwin -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0 -- /Users/ikovale/Dev/IOPaint-mod/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/ikovale/Dev/IOPaint-mod
+configfile: pyproject.toml
+plugins: anyio-4.12.1, loguru-0.4.0
+collecting ... collected 1 item
+
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_daily ERROR [100%]
+
+==================================== ERRORS ====================================
+_ ERROR at setup of TestBudgetLimitsValidation.test_update_budget_limits_negative_daily _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-2/test_update_budget_limits_nega0')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-2/test_update_budget_limits_nega0')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+>       return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+            realesrgan_model=RealESRGANModel.RealESRGAN_x4plus,
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       pydantic_core._pydantic_core.ValidationError: 11 validation errors for ApiConfig
+E       quality
+E         Field required [type=missing, input_value={'host': '127.0.0.1', 'po...': 0, 'model_dir': None}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       enable_interactive_seg
+E         Field required [type=missing, input_value={'host': '127.0.0.1', 'po...': 0, 'model_dir': None}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       enable_remove_bg
+E         Field required [type=missing, input_value={'host': '127.0.0.1', 'po...': 0, 'model_dir': None}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       remove_bg_device
+E         Field required [type=missing, input_value={'host': '127.0.0.1', 'po...': 0, 'model_dir': None}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       enable_anime_seg
+E         Field required [type=missing, input_value={'host': '127.0.0.1', 'po...': 0, 'model_dir': None}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       enable_realesrgan
+E         Field required [type=missing, input_value={'host': '127.0.0.1', 'po...': 0, 'model_dir': None}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       realesrgan_device
+E         Field required [type=missing, input_value={'host': '127.0.0.1', 'po...': 0, 'model_dir': None}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       enable_gfpgan
+E         Field required [type=missing, input_value={'host': '127.0.0.1', 'po...': 0, 'model_dir': None}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       gfpgan_device
+E         Field required [type=missing, input_value={'host': '127.0.0.1', 'po...': 0, 'model_dir': None}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       enable_restoreformer
+E         Field required [type=missing, input_value={'host': '127.0.0.1', 'po...': 0, 'model_dir': None}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+E       restoreformer_device
+E         Field required [type=missing, input_value={'host': '127.0.0.1', 'po...': 0, 'model_dir': None}, input_type=dict]
+E           For further information visit https://errors.pydantic.dev/2.12/v/missing
+
+iopaint/tests/test_api_error_handling.py:24: ValidationError
+=============================== warnings summary ===============================
+iopaint/schema.py:426
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/schema.py:426: PydanticDeprecatedSince212: Using `@model_validator` with mode='after' on a classmethod is deprecated. Instead, use an instance method. See the documentation at https://docs.pydantic.dev/2.12/concepts/validators/#model-after-validator. Deprecated in Pydantic V2.12 to be removed in V3.0.
+    @model_validator(mode="after")
+
+iopaint/helper.py:2
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/helper.py:2: DeprecationWarning: 'imghdr' is deprecated and slated for removal in Python 3.13
+    import imghdr
+
+iopaint/storage/models.py:57
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:57: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class GenerationJob(BaseModel):
+
+iopaint/storage/models.py:85
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:85: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ImageRecord(BaseModel):
+
+iopaint/storage/models.py:106
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:106: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HistorySnapshot(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_daily
+========================= 5 warnings, 1 error in 3.35s =========================
+---
+Command failed with status 1

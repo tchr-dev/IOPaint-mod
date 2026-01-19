@@ -1,0 +1,722 @@
+Running: uv run pytest iopaint/tests/test_api_error_handling.py -v
+---
+============================= test session starts ==============================
+platform darwin -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0 -- /Users/ikovale/Dev/IOPaint-mod/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/ikovale/Dev/IOPaint-mod
+configfile: pyproject.toml
+plugins: anyio-4.12.1, loguru-0.4.0
+collecting ... collected 12 items
+
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_daily ERROR [  8%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_monthly ERROR [ 16%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_session ERROR [ 25%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_valid_values ERROR [ 33%]
+iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_partial_update ERROR [ 41%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_invalid_model ERROR [ 50%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_openai_without_api_key ERROR [ 58%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_model_value_error ERROR [ 66%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_model_unexpected_error ERROR [ 75%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_same_model_noop ERROR [ 83%]
+iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_successful_model_switch ERROR [ 91%]
+iopaint/tests/test_api_error_handling.py::TestBudgetStatusSerialization::test_budget_status_unlimited_json_serializable ERROR [100%]
+
+==================================== ERRORS ====================================
+_ ERROR at setup of TestBudgetLimitsValidation.test_update_budget_limits_negative_daily _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_update_budget_limits_nega0')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_update_budget_limits_nega0')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+_ ERROR at setup of TestBudgetLimitsValidation.test_update_budget_limits_negative_monthly _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_update_budget_limits_nega1')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_update_budget_limits_nega1')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+_ ERROR at setup of TestBudgetLimitsValidation.test_update_budget_limits_negative_session _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_update_budget_limits_nega2')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_update_budget_limits_nega2')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+_ ERROR at setup of TestBudgetLimitsValidation.test_update_budget_limits_valid_values _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_update_budget_limits_vali0')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_update_budget_limits_vali0')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+_ ERROR at setup of TestBudgetLimitsValidation.test_update_budget_limits_partial_update _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_update_budget_limits_part0')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_update_budget_limits_part0')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+_ ERROR at setup of TestModelSwitchingErrorHandling.test_switch_to_invalid_model _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_switch_to_invalid_model0')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_switch_to_invalid_model0')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+_ ERROR at setup of TestModelSwitchingErrorHandling.test_switch_to_openai_without_api_key _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_switch_to_openai_without_0')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_switch_to_openai_without_0')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+_ ERROR at setup of TestModelSwitchingErrorHandling.test_switch_model_value_error _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_switch_model_value_error0')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_switch_model_value_error0')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+_ ERROR at setup of TestModelSwitchingErrorHandling.test_switch_model_unexpected_error _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_switch_model_unexpected_e0')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_switch_model_unexpected_e0')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+_ ERROR at setup of TestModelSwitchingErrorHandling.test_switch_to_same_model_noop _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_switch_to_same_model_noop0')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_switch_to_same_model_noop0')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+_ ERROR at setup of TestModelSwitchingErrorHandling.test_successful_model_switch _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_successful_model_switch0')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_successful_model_switch0')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+_ ERROR at setup of TestBudgetStatusSerialization.test_budget_status_unlimited_json_serializable _
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_budget_status_unlimited_j0')
+
+    @pytest.fixture
+    def test_client(tmp_path):
+        """Create a test client with mocked dependencies."""
+>       api_config = _make_api_config(tmp_path)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+iopaint/tests/test_api_error_handling.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/6c/p3d8vbkj14j3s24cbg1btls00000gn/T/pytest-of-ikovale/pytest-1/test_budget_status_unlimited_j0')
+
+    def _make_api_config(tmp_path: Path) -> ApiConfig:
+        """Create a test API configuration."""
+        return ApiConfig(
+            host="127.0.0.1",
+            port=8080,
+            inbrowser=False,
+            model="lama",
+            no_half=True,
+            low_mem=False,
+            cpu_offload=False,
+            disable_nsfw_checker=True,
+            local_files_only=True,
+            cpu_textencoder=False,
+            device=Device.cpu,
+            input=None,
+            mask_dir=None,
+            output_dir=None,
+            output=None,
+            mask=None,
+            edge_feathering=0,
+            output_type="png",
+            enable_controlnet=False,
+            controlnet_method=None,
+            enable_brushnet=False,
+            brushnet_method=None,
+            enable_powerpaint_v2=False,
+>           realesrgan_model=RealESRGANModel.realesrgan_x4plus,
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            remove_bg_model=RemoveBGModel.u2net,
+            interactive_seg_model=InteractiveSegModel.vit_b,
+            interactive_seg_device=Device.cpu,
+            enable_upload_api=False,
+            enable_download_api=False,
+            cors_origins=[],
+            max_queue_size=0,
+            model_dir=None,
+        )
+E       AttributeError: type object 'RealESRGANModel' has no attribute 'realesrgan_x4plus'. Did you mean: 'RealESRGAN_x4plus'?
+
+iopaint/tests/test_api_error_handling.py:48: AttributeError
+=============================== warnings summary ===============================
+iopaint/schema.py:426
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/schema.py:426: PydanticDeprecatedSince212: Using `@model_validator` with mode='after' on a classmethod is deprecated. Instead, use an instance method. See the documentation at https://docs.pydantic.dev/2.12/concepts/validators/#model-after-validator. Deprecated in Pydantic V2.12 to be removed in V3.0.
+    @model_validator(mode="after")
+
+iopaint/helper.py:2
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/helper.py:2: DeprecationWarning: 'imghdr' is deprecated and slated for removal in Python 3.13
+    import imghdr
+
+iopaint/storage/models.py:57
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:57: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class GenerationJob(BaseModel):
+
+iopaint/storage/models.py:85
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:85: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ImageRecord(BaseModel):
+
+iopaint/storage/models.py:106
+  /Users/ikovale/Dev/IOPaint-mod/iopaint/storage/models.py:106: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HistorySnapshot(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_daily
+ERROR iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_monthly
+ERROR iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_negative_session
+ERROR iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_valid_values
+ERROR iopaint/tests/test_api_error_handling.py::TestBudgetLimitsValidation::test_update_budget_limits_partial_update
+ERROR iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_invalid_model
+ERROR iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_openai_without_api_key
+ERROR iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_model_value_error
+ERROR iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_model_unexpected_error
+ERROR iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_switch_to_same_model_noop
+ERROR iopaint/tests/test_api_error_handling.py::TestModelSwitchingErrorHandling::test_successful_model_switch
+ERROR iopaint/tests/test_api_error_handling.py::TestBudgetStatusSerialization::test_budget_status_unlimited_json_serializable
+======================== 5 warnings, 12 errors in 4.53s ========================
+---
+Command failed with status 1

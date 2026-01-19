@@ -1,0 +1,28 @@
+Running: uv run ruff check iopaint/tests/ && uv run ruff format --check iopaint/tests/
+---
+F401 [*] `iopaint.plugins.InteractiveSeg` imported but unused
+ --> iopaint/tests/test_model_md5.py:2:33
+  |
+1 | def test_load_model():
+2 |     from iopaint.plugins import InteractiveSeg
+  |                                 ^^^^^^^^^^^^^^
+3 |     from iopaint.model_manager import ModelManager
+  |
+help: Remove unused import: `iopaint.plugins.InteractiveSeg`
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.
+Would reformat: iopaint/tests/test_anytext.py
+Would reformat: iopaint/tests/test_api_error_handling.py
+Would reformat: iopaint/tests/test_budget_limits.py
+Would reformat: iopaint/tests/test_controlnet.py
+Would reformat: iopaint/tests/test_external_services_config.py
+Would reformat: iopaint/tests/test_history_snapshots_api.py
+Would reformat: iopaint/tests/test_instruct_pix2pix.py
+Would reformat: iopaint/tests/test_low_mem.py
+Would reformat: iopaint/tests/test_match_histograms.py
+Would reformat: iopaint/tests/test_model.py
+Would reformat: iopaint/tests/test_openai_capabilities.py
+Would reformat: iopaint/tests/test_openai_client.py
+Would reformat: iopaint/tests/test_openai_tools_api.py
+13 files would be reformatted, 19 files already formatted

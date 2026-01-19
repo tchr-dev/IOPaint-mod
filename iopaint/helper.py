@@ -3,8 +3,11 @@ import imghdr
 import io
 import os
 import sys
+import warnings
 from typing import List, Optional, Dict, Tuple, Type
 from urllib.parse import urlparse
+
+warnings.filterwarnings("ignore", message=".*nvfuser.*")
 
 import cv2
 from PIL import Image, ImageOps, PngImagePlugin
