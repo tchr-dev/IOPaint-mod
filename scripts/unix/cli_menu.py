@@ -288,6 +288,7 @@ def main():
 
     try:
         menu_type = sys.argv[1] if len(sys.argv) > 1 else "main"
+        output_file = sys.argv[2] if len(sys.argv) > 2 else None
         
         if menu_type == "main":
             result = main_menu()
@@ -308,7 +309,11 @@ def main():
             # Fallback signal - Python CLI not available
             sys.exit(1)
 
-        print(result, flush=True)
+        if output_file:
+            with open(output_file, 'w') as f:
+                f.write(result)
+        else:
+            print(result, flush=True)
     except KeyboardInterrupt:
         print("quit", flush=True)
         sys.exit(0)
