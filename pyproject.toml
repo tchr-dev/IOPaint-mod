@@ -3,7 +3,7 @@ name = "iopaint-mod"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "torch>=2.0.0",
+    "torch>=2.3.0",
     "opencv-python",
     "diffusers>=0.27.2",
     "huggingface_hub>=0.25.2",
@@ -32,4 +32,4 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["wheel", "twine", "pytest", "pytest-loguru"]
+dev = ["wheel", "twine", "pytest", "pytest-loguru", "ruff", "questionary>=2.0.0", "rich>=13.0.0"]

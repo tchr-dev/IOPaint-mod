@@ -43,19 +43,19 @@ class BudgetStatusResponse(BaseModel):
         """Create response from raw usage values."""
         daily = BudgetUsage(
             spent_usd=daily_spent,
-            remaining_usd=max(0, daily_cap - daily_spent) if daily_cap > 0 else float("inf"),
+            remaining_usd=max(0, daily_cap - daily_spent) if daily_cap > 0 else 999999.99,
             cap_usd=daily_cap,
             is_unlimited=daily_cap <= 0,
         )
         monthly = BudgetUsage(
             spent_usd=monthly_spent,
-            remaining_usd=max(0, monthly_cap - monthly_spent) if monthly_cap > 0 else float("inf"),
+            remaining_usd=max(0, monthly_cap - monthly_spent) if monthly_cap > 0 else 999999.99,
             cap_usd=monthly_cap,
             is_unlimited=monthly_cap <= 0,
         )
         session = BudgetUsage(
             spent_usd=session_spent,
-            remaining_usd=max(0, session_cap - session_spent) if session_cap > 0 else float("inf"),
+            remaining_usd=max(0, session_cap - session_spent) if session_cap > 0 else 999999.99,
             cap_usd=session_cap,
             is_unlimited=session_cap <= 0,
         )

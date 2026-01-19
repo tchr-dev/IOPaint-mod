@@ -454,8 +454,25 @@ class Api:
     def api_switch_model(self, req: SwitchModelRequest) -> ModelInfo:
         if req.name == self.model_manager.name:
             return self.model_manager.current_model
-        self.model_manager.switch(req.name)
-        return self.model_manager.current_model
+
+        # Pre-validate OpenAI configuration before switching
+        if req.name == "openai-compat":
+            if not self.openai_config or not self.openai_config.is_enabled:
+                raise HTTPException(
+                    status_code=400,
+                    detail="OpenAI API key is required to use openai-compat model. Set AIE_OPENAI_API_KEY environment variable."
+                )
+
+        try:
+            self.model_manager.switch(req.name)
+            return self.model_manager.current_model
+        except NotImplementedError as e:
+            raise HTTPException(status_code=400, detail=f"Model '{req.name}' is not available. {str(e)}")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid model configuration: {str(e)}")
+        except Exception as e:
+            logger.error(f"Failed to switch model to '{req.name}': {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to switch model: {str(e)}")
 
     def api_switch_plugin_model(self, req: SwitchPluginModelRequest):
         if req.plugin_name in self.plugins:
@@ -1472,6 +1489,15 @@ class Api:
     def api_update_budget_limits(self, req: BudgetLimitsUpdate) -> BudgetLimits:
         """Update persisted budget limits for the current instance."""
         current = self._resolve_budget_limits()
+
+        # Validate budget limits are non-negative
+        if req.daily_cap_usd is not None and req.daily_cap_usd < 0:
+            raise HTTPException(status_code=400, detail="Daily budget cap cannot be negative")
+        if req.monthly_cap_usd is not None and req.monthly_cap_usd < 0:
+            raise HTTPException(status_code=400, detail="Monthly budget cap cannot be negative")
+        if req.session_cap_usd is not None and req.session_cap_usd < 0:
+            raise HTTPException(status_code=400, detail="Session budget cap cannot be negative")
+
         updated = BudgetLimits(
             daily_cap_usd=
             current.daily_cap_usd if req.daily_cap_usd is None else req.daily_cap_usd,

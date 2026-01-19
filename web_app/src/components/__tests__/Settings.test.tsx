@@ -3,8 +3,6 @@ import { act } from "react-dom/test-utils"
 import { createRoot } from "react-dom/client"
 
 import { SettingsDialog } from "../Settings"
-import { useStore } from "@/lib/states"
-import { getServerConfig, switchModel } from "@/lib/api"
 import type { ModelInfo, ServerConfig, BudgetLimits } from "@/lib/types"
 
 // Mock declarations first
