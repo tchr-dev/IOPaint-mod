@@ -132,7 +132,7 @@ const SimplifiedOptions = () => {
   }
 
   return (
-    <div className="flex flex-col gap-4 py-4">
+    <div className="flex flex-col gap-4 py-4" data-testid="simplified-options">
       <RowContainer>
         <LabelTitle text="Quality" />
         <Select

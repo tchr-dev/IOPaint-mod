@@ -8,9 +8,7 @@ code in this repository.
 IOPaint is an image inpainting and outpainting tool powered by AI models. It
 provides both a web UI and CLI for removing objects, generating content in
 masked areas, and enhancing images using various AI models including LaMa,
-Stable Diffusion, SDXL, and specialized models like PowerPaint and AnyText. It
-also supports OpenAI-compatible APIs (gpt-image-1, dall-e-3) with budget safety
-controls.
+Stable Diffusion, SDXL, and specialized models like PowerPaint and AnyText.
 
 ## Development Commands
 
@@ -38,9 +36,6 @@ pip install -r requirements.txt
 
 # Start backend server for development
 python3 main.py start --model lama --port 8080
-
-# Start with OpenAI-compatible model
-python3 main.py start --model openai-compat --port 8080
 
 # Run tests (requires appropriate device - cuda/mps/cpu)
 pytest iopaint/tests/test_model.py -v
@@ -115,23 +110,7 @@ VITE_BACKEND=http://127.0.0.1:8080
 - `INPAINT`: Traditional inpainting models (LaMa, MAT, ZITS, etc.)
 - `DIFFUSERS_SD`/`DIFFUSERS_SD_INPAINT`: Stable Diffusion 1.5
 - `DIFFUSERS_SDXL`/`DIFFUSERS_SDXL_INPAINT`: Stable Diffusion XL
-- `OPENAI_COMPAT`: OpenAI-compatible API models (gpt-image-1, dall-e-3, etc.)
 - `PLUGIN`: Plugin-provided models (RealESRGAN, GFPGAN, RemoveBG, etc.)
-
-**OpenAI Compatibility** (`iopaint/openai_compat/`):
-
-- `client.py`: Wrapper around OpenAI's image API
-- `model_adapter.py`: Adapts OpenAI responses to IOPaint's internal format
-- `models.py`: Request/response Pydantic schemas
-- `config.py`: OpenAI-specific configuration
-
-**Budget Safety** (`iopaint/budget/`):
-
-- `guard.py:BudgetGuard`: Enforces daily/monthly/session spending caps
-- `rate_limiter.py`: Rate limiting between expensive operations
-- `cost_estimator.py`: Estimates costs before API calls
-- `storage.py`: Persists budget tracking data
-- `session.py`: Session-scoped budget tracking
 
 **Plugins** (`iopaint/plugins/`):
 

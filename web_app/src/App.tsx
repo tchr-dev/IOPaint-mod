@@ -18,6 +18,9 @@ const SUPPORTED_FILE_TYPE = [
   "image/tiff",
 ]
 
+import { BrowserRouter, Routes, Route } from "react-router-dom"
+import Settings from "@/pages/Settings"
+
 function Home() {
   const [updateAppState, setServerConfig, setFile] = useStore((state) => [
     state.updateAppState,
@@ -146,4 +149,15 @@ function Home() {
   )
 }
 
-export default Home
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/settings" element={<Settings />} />
+      </Routes>
+    </BrowserRouter>
+  )
+}
+
+export default App

@@ -19,7 +19,7 @@ const LDMOptions = () => {
   ])
 
   return (
-    <div className="flex flex-col gap-4 mt-4">
+    <div className="flex flex-col gap-4 mt-4" data-testid="ldm-options">
       <div className="flex flex-col gap-1">
         <LabelTitle
           htmlFor="steps"
@@ -56,7 +56,7 @@ const LDMOptions = () => {
             updateSettings({ ldmSampler: sampler })
           }}
         >
-          <SelectTrigger className="w-[100px]">
+          <SelectTrigger className="w-[100px]" id="sampler">
             <SelectValue placeholder="Select sampler" />
           </SelectTrigger>
           <SelectContent align="end">

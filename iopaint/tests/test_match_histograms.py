@@ -1,6 +1,8 @@
 import pytest
 import torch
 
+pytestmark = pytest.mark.heavy
+
 from iopaint.model_manager import ModelManager
 from iopaint.schema import SDSampler, HDStrategy
 from iopaint.tests.utils import check_device, get_config, assert_equal, current_dir

@@ -19,7 +19,7 @@ const CV2Options = () => {
   ])
 
   return (
-    <div className="flex flex-col gap-4 mt-4">
+    <div className="flex flex-col gap-4 mt-4" data-testid="cv2-options">
       <RowContainer>
         <LabelTitle
           text="CV2 Flag"
@@ -32,7 +32,7 @@ const CV2Options = () => {
             updateSettings({ cv2Flag: flag })
           }}
         >
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[160px]" id="cv2-flag">
             <SelectValue placeholder="Select flag" />
           </SelectTrigger>
           <SelectContent align="end">

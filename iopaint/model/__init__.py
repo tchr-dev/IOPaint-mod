@@ -31,7 +31,6 @@ def _load_models() -> Dict[str, Type["InpaintModel"]]:
     from .sd import SD15, SD2, Anything4, RealisticVision14, SD
     from .sdxl import SDXL
     from .zits import ZITS
-    from iopaint.openai_compat.model_adapter import OpenAICompatModel
 
     _models_cache.update({
         LaMa.name: LaMa,
@@ -53,7 +52,6 @@ def _load_models() -> Dict[str, Type["InpaintModel"]]:
         SDXL.name: SDXL,
         PowerPaint.name: PowerPaint,
         AnyText.name: AnyText,
-        OpenAICompatModel.name: OpenAICompatModel,
     })
 
     return _models_cache

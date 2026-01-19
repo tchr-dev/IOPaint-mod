@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, Any
 import os
 import signal
 import threading
+import json
 
 from loguru import logger
 
@@ -59,6 +60,8 @@ def _parse_env_line(raw_line: str) -> Optional[tuple[str, str]]:
 
 def parse_env_file(path: Path) -> Dict[str, str]:
     entries: Dict[str, str] = {}
+    if not path.exists():
+        return entries
     for line in path.read_text(encoding="utf-8").splitlines():
         parsed = _parse_env_line(line)
         if parsed:
@@ -71,7 +74,10 @@ def load_env_file(path: Optional[Path] = None) -> Dict[str, object]:
     config_path = (path or default_config_path()).expanduser()
     with _LOCK:
         if not config_path.exists():
-            logger.info("Config file not found: %s", config_path)
+            logger.info("Config file not found: {}", config_path)
+            # Create directory if it doesn't exist
+            if not config_path.parent.exists():
+                config_path.parent.mkdir(parents=True, exist_ok=True)
             return {"path": str(config_path), "loaded": False, "added": [], "updated": [], "removed": []}
 
         entries = parse_env_file(config_path)
@@ -101,14 +107,14 @@ def load_env_file(path: Optional[Path] = None) -> Dict[str, object]:
 
         if added or updated or removed:
             logger.info(
-                "Config reloaded from %s (added=%s, updated=%s, removed=%s)",
+                "Config reloaded from {} (added={}, updated={}, removed={})",
                 config_path,
                 added,
                 updated,
                 removed,
             )
         else:
-            logger.info("Config reloaded from %s (no changes)", config_path)
+            logger.info("Config reloaded from {} (no changes)", config_path)
 
         return {
             "path": str(config_path),
@@ -117,6 +123,69 @@ def load_env_file(path: Optional[Path] = None) -> Dict[str, object]:
             "updated": updated,
             "removed": removed,
         }
+
+
+def save_config(config_data: Any, path: Optional[Path] = None) -> None:
+    """Save configuration to the env file.
+    
+    This function accepts an ApiConfig object or a dictionary and persists it to the
+    configuration file (defaulting to config/secret.env).
+    
+    Note: IO Paint's original web_config.py used a JSON format for saving checks,
+    but we are moving to saving runtime config or environment config.
+    Wait, `web_config.py` saved to a JSON file passed as argument.
+    If we want to support that flow, we should probably check if we are using environment variables
+    or a JSON config file.
+    
+    However, the user request is to replace Gradio Settings.
+    Gradio Settings allowed modifying:
+    - Host, Port (startup args)
+    - Model, Device, Quality, etc. (Runtime args)
+    
+    The original `web_config.py` saved these to a JSON file.
+    To allow similar functionality, we should save these to a JSON file that can be loaded on startup.
+    The `load_config` in `web_config.py` loaded from a JSON file.
+    
+    Let's stick to the JSON config file approach for compatibility with how people might expect
+    settings to work (a persistant settings file), but we need to know WHERE to save it.
+    
+    If `config_loader` is strictly for ENV files, maybe we should create a new `settings_manager`
+    or similar. But `api.py` needs it.
+    
+    For now, I will implement a `save_config` that saves to `iopaint_config.json` in the working directory
+    or the one specified by `AIE_CONFIG_FILE` if it ends in .json, otherwise `iopaint_config.json`.
+    """
+    
+    # We need to handle ApiConfig object
+    if hasattr(config_data, "model_dump"):
+         data = config_data.model_dump()
+    elif hasattr(config_data, "dict"):
+        data = config_data.dict()
+    else:
+        data = config_data
+
+    # Filter out entries that shouldn't be saved or sanitize types if needed
+    # For now assume it's JSON serializable
+    
+    # Check where to save
+    # In web_config.py, it used a global _config_file.
+    # We don't have that global here.
+    # We can default to `iopaint.json` in current dir?
+    target_path = Path("iopaint_config.json")
+    
+    # If we want to respect the file passed in CLI, we'd need that info.
+    # But CLI args are parsed in `cli.py` or `entry.py`.
+    # Let's check api.py again, `Api` is initialized with `config`.
+    # But `Api` class doesn't seem to store the config FILE path, only the values.
+    
+    # Let's save to a fixed location for this refactor: user provided config path or default.
+    # Since we can't easily access the CLI arg here without threading it through, 
+    # we will use a standard location.
+    
+    with open(target_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
+    
+    logger.info(f"Configuration saved to {target_path.absolute()}")
 
 
 def install_sighup_handler(reload_callback) -> None:

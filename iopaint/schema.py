@@ -26,7 +26,6 @@ class ModelType(str, Enum):
     DIFFUSERS_SDXL = "diffusers_sdxl"
     DIFFUSERS_SDXL_INPAINT = "diffusers_sdxl_inpaint"
     DIFFUSERS_OTHER = "diffusers_other"
-    OPENAI_COMPAT = "openai_compat"  # OpenAI-compatible API (gpt-image-1, dall-e-3, etc.)
     PLUGIN = "plugin"  # Plugin-provided models (RealESRGAN, GFPGAN, etc.)
     UNKNOWN = "unknown"  # Type not yet determined (deferred detection)
 
@@ -46,7 +45,6 @@ class ModelInfo(BaseModel):
             ModelType.DIFFUSERS_SDXL,
             ModelType.DIFFUSERS_SD_INPAINT,
             ModelType.DIFFUSERS_SDXL_INPAINT,
-            ModelType.OPENAI_COMPAT,
         ] or self.name in [
             INSTRUCT_PIX2PIX_NAME,
             KANDINSKY22_NAME,
@@ -494,6 +492,33 @@ class ServerConfigResponse(BaseModel):
     disableModelSwitch: bool
     isDesktop: bool
     samplers: List[str]
+    # Added fields for Settings UI
+    host: str
+    port: int
+    inbrowser: bool
+    model: str
+    no_half: bool
+    low_mem: bool
+    cpu_offload: bool
+    disable_nsfw_checker: bool
+    local_files_only: bool
+    cpu_textencoder: bool
+    device: Device
+    input: Optional[Path]
+    mask_dir: Optional[Path]
+    output_dir: Optional[Path]
+    quality: int
+    enable_interactive_seg: bool
+    interactive_seg_device: Device
+    enable_remove_bg: bool
+    remove_bg_device: Device
+    enable_anime_seg: bool
+    enable_realesrgan: bool
+    realesrgan_device: Device
+    enable_gfpgan: bool
+    gfpgan_device: Device
+    enable_restoreformer: bool
+    restoreformer_device: Device
 
 
 class SwitchModelRequest(BaseModel):

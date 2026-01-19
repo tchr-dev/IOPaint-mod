@@ -5,7 +5,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LibDir = Join-Path $ScriptDir "..\..\lib"
 . "$LibDir\common.ps1"
 
-$Model = $env:IOPAINT_MODEL ?? "openai-compat"
+$Model = $env:IOPAINT_MODEL ?? "lama"
 $Port = $env:IOPAINT_PORT ?? "8080"
 $Verbose = $env:IOPAINT_VERBOSE ?? ""
 $NoSync = $false

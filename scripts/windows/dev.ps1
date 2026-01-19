@@ -5,7 +5,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LibDir = Join-Path $ScriptDir "..\..\lib"
 . "$LibDir\common.ps1"
 
-$Model = $env:IOPAINT_MODEL ?? "openai-compat"
+$Model = $env:IOPAINT_MODEL ?? "lama"
 $Port = $env:IOPAINT_PORT ?? "8080"
 $Verbose = $env:IOPAINT_VERBOSE ?? ""
 $FrontendPort = $env:IOPAINT_FRONTEND_PORT ?? "5173"
@@ -22,7 +22,7 @@ Starts:
   - Frontend: Vite dev server (web_app)
 
 Options:
-  --model           Model name (default: openai-compat)
+  --model           Model name (default: lama)
   --port            Backend port (default: 8080)
   --frontend-port   Frontend port hint for messaging (default: 5173)
   --verbose, -v     Enable verbose logging (sets IOPAINT_VERBOSE)

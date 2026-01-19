@@ -8,11 +8,6 @@
   guided image generation
 - "powerpaint" is a specialized inpainting model with unique capabilities, not
   general power management
-- "openai-compat" refers to API compatibility with OpenAI's image generation
-  endpoints
-- "budget safety" refers to spending limits for API-based image generation, not
-  general application budgeting
-- "history storage" refers to job history and image storage, not browser history
 - "file manager" handles input/output image directories, not general file system
   operations
 - "sam" refers to Segment Anything Model for mask generation, not AWS SAM

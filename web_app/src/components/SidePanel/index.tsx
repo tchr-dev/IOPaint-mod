@@ -8,13 +8,10 @@ import { Button } from "../ui/button"
 import useHotKey from "@/hooks/useHotkey"
 import { RowContainer } from "./LabelTitle"
 import SimplifiedOptions from "./SimplifiedOptions"
-import { OpenAIGeneratePanel, OpenAIEditPanel } from "../OpenAI"
 
 const SidePanel = () => {
-  const [windowSize, isOpenAIMode, isOpenAIEditMode] = useStore((state) => [
+  const [windowSize] = useStore((state) => [
     state.windowSize,
-    state.openAIState.isOpenAIMode,
-    state.openAIState.isOpenAIEditMode,
   ])
 
   const [open, toggleOpen] = useToggle(true)
@@ -24,19 +21,10 @@ const SidePanel = () => {
   })
 
   const renderSidePanelOptions = () => {
-    // OpenAI mode takes precedence
-    if (isOpenAIMode) {
-      // Show edit panel or generate panel based on mode
-      return isOpenAIEditMode ? <OpenAIEditPanel /> : <OpenAIGeneratePanel />
-    }
-    // Simplified local mode
     return <SimplifiedOptions />
   }
 
   const getPanelTitle = () => {
-    if (isOpenAIMode) {
-      return isOpenAIEditMode ? "Cloud Edit" : "Cloud Generation"
-    }
     return "Quality Presets"
   }
 

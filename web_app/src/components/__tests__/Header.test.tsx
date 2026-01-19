@@ -46,9 +46,6 @@ describe("Header", () => {
     (useStore as any).mockImplementation(() => [
       false, // isInpainting
       vi.fn(), // setFile
-      false, // isOpenAIMode
-      vi.fn(), // setOpenAIMode
-      false, // isOpenAIGenerating
     ])
   })
 
@@ -64,26 +61,6 @@ describe("Header", () => {
     expect(container.querySelector("header")).toBeTruthy()
     // Upload button is an input type="file", check for it
     expect(container.querySelector("input[type='file']")).toBeTruthy()
-
-    await act(async () => {
-      root.unmount()
-    })
-    container.remove()
-  })
-
-  it("renders local/cloud mode toggle", async () => {
-    const container = document.createElement("div")
-    document.body.appendChild(container)
-    const root = createRoot(container)
-
-    await act(async () => {
-      root.render(<Header />)
-    })
-
-    expect(container.textContent).toContain("Local")
-    expect(container.textContent).toContain("Cloud")
-    // Switch component uses button with role="switch", not checkbox
-    expect(container.querySelector("button[role='switch']")).toBeTruthy()
 
     await act(async () => {
       root.unmount()

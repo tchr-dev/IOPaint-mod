@@ -5,6 +5,9 @@ from iopaint.schema import InpaintRequest
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 import torch
+import pytest
+
+pytestmark = pytest.mark.heavy
 
 from iopaint.model_manager import ModelManager
 

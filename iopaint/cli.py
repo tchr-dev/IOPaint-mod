@@ -178,48 +178,6 @@ def start(
     gfpgan_device: Device = Option(Device.cpu),
     enable_restoreformer: bool = Option(False),
     restoreformer_device: Device = Option(Device.cpu),
-    # OpenAI-compatible API options
-    openai_api_key: Optional[str] = Option(
-        None,
-        envvar="AIE_OPENAI_API_KEY",
-        help="API key for OpenAI-compatible image API. Required for openai-compat model.",
-    ),
-    openai_base_url: Optional[str] = Option(
-        None,
-        envvar="AIE_OPENAI_BASE_URL",
-        help="Base URL for OpenAI-compatible API. Default: https://api.openai.com/v1",
-    ),
-    openai_model: Optional[str] = Option(
-        None,
-        envvar="AIE_OPENAI_MODEL",
-        help="Default model for OpenAI image operations. Default: gpt-image-1",
-    ),
-    # Budget safety options
-    budget_daily_cap: Optional[float] = Option(
-        None,
-        envvar="AIE_BUDGET_DAILY_CAP",
-        help="Daily budget cap in USD. 0 = unlimited. Default: 10.0",
-    ),
-    budget_monthly_cap: Optional[float] = Option(
-        None,
-        envvar="AIE_BUDGET_MONTHLY_CAP",
-        help="Monthly budget cap in USD. 0 = unlimited. Default: 100.0",
-    ),
-    budget_session_cap: Optional[float] = Option(
-        None,
-        envvar="AIE_BUDGET_SESSION_CAP",
-        help="Per-session budget cap in USD. 0 = unlimited. Default: 5.0",
-    ),
-    budget_rate_limit: Optional[int] = Option(
-        None,
-        envvar="AIE_RATE_LIMIT_SECONDS",
-        help="Min seconds between expensive operations. Default: 10",
-    ),
-    budget_data_dir: Optional[Path] = Option(
-        None,
-        envvar="AIE_DATA_DIR",
-        help="Data directory for budget DB and cache. Default: ~/.iopaint/data",
-    ),
 ):
     dump_environment_info()
     device = check_device(device)
@@ -253,39 +211,6 @@ def start(
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
         os.environ["HF_HUB_OFFLINE"] = "1"
 
-    env_overrides = []
-
-    # Set OpenAI environment variables from CLI flags if provided
-    if openai_api_key:
-        os.environ["AIE_OPENAI_API_KEY"] = openai_api_key
-        env_overrides.append("AIE_OPENAI_API_KEY")
-    if openai_base_url:
-        os.environ["AIE_OPENAI_BASE_URL"] = openai_base_url
-        env_overrides.append("AIE_OPENAI_BASE_URL")
-    if openai_model:
-        os.environ["AIE_OPENAI_MODEL"] = openai_model
-        env_overrides.append("AIE_OPENAI_MODEL")
-
-    # Set budget environment variables from CLI flags if provided
-    if budget_daily_cap is not None:
-        os.environ["AIE_BUDGET_DAILY_CAP"] = str(budget_daily_cap)
-        env_overrides.append("AIE_BUDGET_DAILY_CAP")
-    if budget_monthly_cap is not None:
-        os.environ["AIE_BUDGET_MONTHLY_CAP"] = str(budget_monthly_cap)
-        env_overrides.append("AIE_BUDGET_MONTHLY_CAP")
-    if budget_session_cap is not None:
-        os.environ["AIE_BUDGET_SESSION_CAP"] = str(budget_session_cap)
-        env_overrides.append("AIE_BUDGET_SESSION_CAP")
-    if budget_rate_limit is not None:
-        os.environ["AIE_RATE_LIMIT_SECONDS"] = str(budget_rate_limit)
-        env_overrides.append("AIE_RATE_LIMIT_SECONDS")
-    if budget_data_dir is not None:
-        os.environ["AIE_DATA_DIR"] = str(budget_data_dir.expanduser().absolute())
-        env_overrides.append("AIE_DATA_DIR")
-
-    if env_overrides:
-        register_env_override(env_overrides)
-
     from iopaint.download import cli_download_model, scan_models
 
     scanned_models = scan_models()
@@ -304,12 +229,8 @@ def start(
         # Startup
         if inbrowser:
             webbrowser.open(f"http://localhost:{port}", new=0, autoraise=True)
-        if api_holder["api"] is not None:
-            await api_holder["api"]._start_job_runner()
         yield
         # Shutdown
-        if api_holder["api"] is not None:
-            await api_holder["api"]._stop_job_runner()
 
     app = FastAPI(lifespan=lifespan)
 
@@ -558,11 +479,4 @@ def is_interactive():
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
-@typer_app.command(help="Start IOPaint web config page")
-def start_web_config(
-    config_file: Path = Option("config.json"),
-):
-    dump_environment_info()
-    from iopaint.web_config import main
 
-    main(config_file)

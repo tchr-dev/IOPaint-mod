@@ -1,3 +1,7 @@
+import pytest
+
+pytestmark = pytest.mark.heavy
+
 def test_load_model():
     from iopaint.model_manager import ModelManager
 

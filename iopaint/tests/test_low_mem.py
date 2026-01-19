@@ -8,6 +8,8 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import pytest
 import torch
 
+pytestmark = pytest.mark.heavy
+
 from iopaint.model_manager import ModelManager
 from iopaint.schema import HDStrategy, SDSampler
 

@@ -80,7 +80,7 @@ def stop(
 
 @app.command()
 def dev(
-    model: str = typer.Option("openai-compat", help="Model name"),
+    model: str = typer.Option("lama", help="Model name"),
     port: int = typer.Option(8080, help="Backend port"),
     frontend_port: int = typer.Option(5173, help="Frontend port"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose logging"),
@@ -109,7 +109,7 @@ def dev(
         env["IOPAINT_VERBOSE"] = "1"
         
     backend_cmd = ["uv", "run", "python", "main.py", "start", "--model", model, "--port", str(port)]
-    frontend_cmd = ["npm", "run", "dev"]
+    frontend_cmd = ["npm", "run", "dev", "--", "--port", str(frontend_port)]
     
     console.print(Panel(f"Starting IOPaint Dev\nBackend: {port}\nFrontend: {frontend_port}", style="bold green"))
     
@@ -144,7 +144,7 @@ def dev(
 
 @app.command()
 def prod(
-    model: str = typer.Option("openai-compat", help="Model name"),
+    model: str = typer.Option("lama", help="Model name"),
     port: int = typer.Option(8080, help="Backend port"),
     no_sync: bool = typer.Option(False, help="Skip python sync"),
     no_npm: bool = typer.Option(False, help="Skip npm install"),
@@ -297,64 +297,6 @@ def docker(
         ]
         run_cmd(cmd)
 
-@app.command()
-def jobs(
-    action: str = typer.Argument(..., help="Action: cancel"),
-    url: str = typer.Option("http://127.0.0.1:8080", help="IOPaint server URL"),
-    db: Path = typer.Option(Path(os.environ.get("HOME", "")) / ".iopaint/data/budget.db", help="Path to budget.db"),
-    dry_run: bool = typer.Option(False, help="Dry run"),
-):
-    """Job utilities."""
-    if action != "cancel":
-        console.print(f"[red]Unknown action: {action}[/red]")
-        raise typer.Exit(1)
-        
-    console.print(f"Cancelling stuck jobs on {url}...")
-    
-    if not db.exists():
-        console.print(f"[red]Database not found at {db}[/red]")
-        raise typer.Exit(1)
-        
-    import sqlite3
-    import httpx
-    
-    conn = sqlite3.connect(db)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, session_id FROM generation_jobs WHERE status IN ('running','queued')")
-    rows = cursor.fetchall()
-    conn.close()
-    
-    if not rows:
-        console.print("No stuck jobs found.")
-        return
-        
-    console.print(f"Found {len(rows)} stuck job(s).")
-    
-    for job_id, session_id in rows:
-        console.print(f"Cancelling job: {job_id} (session: {session_id[:8]}...)")
-        
-        if dry_run:
-            console.print(f"  (dry-run) POST {url}/api/v1/openai/jobs/{job_id}/cancel")
-            continue
-            
-        try:
-            resp = httpx.post(
-                f"{url}/api/v1/openai/jobs/{job_id}/cancel",
-                headers={"X-Session-Id": session_id},
-                timeout=5.0
-            )
-            data = resp.json()
-            status = data.get("status", "error")
-            if status == "cancelled":
-                console.print("  Cancelled")
-            else:
-                console.print(f"  [yellow]Status: {status}[/yellow]")
-        except Exception as e:
-            console.print(f"  [red]Error: {e}[/red]")
-            
-    console.print("[bold yellow]IMPORTANT: Clear browser state to fix stuck 'Generating...'[/bold yellow]")
-    console.print("Run in browser console: localStorage.removeItem('ZUSTAND_STATE'); location.reload()")
-
 # --- Test Helpers ---
 def extract_description(filename: str) -> str:
     """Extract test description from filename."""
@@ -364,10 +306,7 @@ def extract_description(filename: str) -> str:
         'anytext': 'anytext',
         'api_error_handling': 'api error handling',
         'brushnet': 'brushnet',
-        'budget_guard': 'budget guard',
-        'budget_limits': 'budget limits',
         'controlnet': 'controlnet',
-        'dedupe_fingerprint': 'dedupe fingerprint',
         'external_services_config': 'external services config',
         'history_snapshots_api': 'history snapshots api',
         'instruct_pix2pix': 'instruct pix2pix',
@@ -378,11 +317,6 @@ def extract_description(filename: str) -> str:
         'model_switch': 'model switch',
         'model': 'model',
         'models_cache_api': 'models cache api',
-        'openai_capabilities': 'openai capabilities',
-        'openai_client': 'openai client',
-        'openai_errors': 'openai errors',
-        'openai_protocol_integration': 'openai protocol integration',
-        'openai_tools_api': 'openai tools api',
         'outpainting': 'outpainting',
         'paint_by_example': 'paint by example',
         'plugins': 'plugins',
@@ -400,10 +334,6 @@ def categorize_test(filename: str) -> str:
         return 'API'
     elif 'model' in filename or 'sd' in filename or 'adjust_mask' in filename or 'load_img' in filename or 'save' in filename:
         return 'Models'
-    elif 'openai' in filename:
-        return 'OpenAI'
-    elif 'budget' in filename:
-        return 'Budget'
     elif 'plugins' in filename:
         return 'Plugins'
     else:
@@ -466,10 +396,6 @@ def test(
         if not args:
              console.print("[red]--args is required for 'custom' suite[/red]")
              raise typer.Exit(1)
-        # Split args string into list safely? For now just use shell=True logic equivalent via bash wrapper if complex,
-        # but pure python subprocess array is better. 
-        # But args string might contain quotes.
-        # Simple split is risky. Let's just pass as is if we can, or split by space.
         run_cmd(["uv", "run", "pytest"] + args.split())
         return
     elif suite == "test-lint":
@@ -493,6 +419,13 @@ def test(
         return
     elif suite == "fe-build":
         run_cmd(["npm", "run", "build"], cwd=Path("web_app"))
+        return
+        
+
+    elif suite == "e2e":
+        # Ensure Playwright browsers are installed? Or leave that to user/CI?
+        # Let's run the npm script
+        run_cmd(["npm", "run", "test:e2e"], cwd=Path("web_app"))
         return
         
     # Interactive Menu
@@ -523,9 +456,6 @@ def test(
             console.print("[red]No tests found.[/red]")
             return
             
-        # Group by category logic... for brevity let's just list them sorted
-        # Or re-implement the categories.
-        # Let's use questionary
         file_choices = []
         for f, d in test_files:
             file_choices.append(f"{f} - {d}")
@@ -568,7 +498,6 @@ def interact():
         "🏗️  Build Frontend",
         "📦 Publish",
         "🐳 Docker",
-        "⚙️  Jobs",
         "🛑 Stop Services", 
         "❓ Help",
         "🚪 Quit"
@@ -585,11 +514,11 @@ def interact():
             break
             
         if "Development" in choice:
-            dev(model="openai-compat", port=8080, frontend_port=5173, verbose=False, no_sync=False, no_npm=False)
+            dev(model="lama", port=8080, frontend_port=5173, verbose=False, no_sync=False, no_npm=False)
         elif "Testing" in choice:
              test(suite=None)
         elif "Production" in choice:
-             prod(model="openai-compat", port=8080, no_sync=False, no_npm=False)
+             prod(model="lama", port=8080, no_sync=False, no_npm=False)
         elif "Build" in choice:
              build(npm_force=False)
         elif "Publish" in choice:
@@ -598,8 +527,6 @@ def interact():
              console.print("[yellow]Use CLI for docker build to pass arguments.[/yellow]")
              # TODO: Interactive docker builder?
              run_cmd(["uv", "run", "manage.py", "docker", "--help"])
-        elif "Jobs" in choice:
-             jobs(action="cancel", url="http://127.0.0.1:8080", db=Path(os.environ.get("HOME", "")) / ".iopaint/data/budget.db", dry_run=False)
         elif "Stop" in choice:
              stop(backend_port=8080, frontend_port=5173)
         elif "Help" in choice:

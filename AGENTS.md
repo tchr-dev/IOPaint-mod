@@ -6,35 +6,38 @@ This file provides guidance to agents when working with code in this repository.
 
 IOPaint is an image inpainting/outpainting tool powered by AI models. It provides a
 web UI and CLI for removing objects, generating content in masked areas, and enhancing
-images using AI models like LaMa, Stable Diffusion, SDXL, PowerPaint, and AnyText. It also
-supports OpenAI-compatible APIs (gpt-image-1, dall-e-3) with budget safety controls.
+images using AI models like LaMa, Stable Diffusion, SDXL, PowerPaint, and AnyText.
 
 ## Development Commands
 
 ```bash
-./run.sh dev --model lama --port 8080    # Development mode
-./run.sh prod --model lama --port 8080   # Production mode
-./run.sh test                            # Interactive test runner
+# Using uv (recommended)
+uv run manage.py dev --model lama --port 8080    # Development mode
+uv run manage.py prod --model lama --port 8080   # Production mode
+uv run manage.py test                            # Interactive test runner
+uv run manage.py --help                          # List all commands
+
+# Or using the deprecated wrapper
+./run.sh dev --model lama --port 8080
 ```
 
 ### Backend (Python)
 
 ```bash
 uv sync                                                 # Install dependencies
-python3 main.py start --model lama --port 8080        # Start server
-pytest iopaint/tests/test_model.py -v                   # Run tests
-pytest iopaint/tests/test_model.py::test_lama -v        # Single test
-pytest iopaint/tests/test_model.py -v -k "cpu"         # Filter by device
+uv run manage.py dev                                    # Start dev server (backend + frontend)
+uv run manage.py test suite=smoke                       # Run smoke tests
+uv run manage.py test suite=file --file iopaint/tests/test_model.py # Run specific file
 ```
 
 ### Frontend (React/TypeScript/Vite)
 
 ```bash
+# Frontend tasks are now handled via manage.py but can still be run manually if needed
 cd web_app
 npm install               # Install dependencies
-npm run dev               # Start dev server (backend on port 8080)
+npm run dev               # Start dev server
 npm run build             # Build for production
-npm run lint              # Lint (no warnings allowed)
 ```
 
 Configure backend URL in `web_app/.env.local`:
@@ -148,7 +151,6 @@ FastAPI + Socket.IO for real-time progress; serves static React frontend from
 - `INPAINT`: Traditional (LaMa, MAT, ZITS)
 - `DIFFUSERS_SD`/`SD_INPAINT`: Stable Diffusion 1.5
 - `DIFFUSERS_SDXL`/`SDXL_INPAINT`: Stable Diffusion XL
-- `OPENAI_COMPAT`: OpenAI-compatible API models
 
 ### Plugin System (TBD)
 
@@ -164,12 +166,6 @@ To re-enable plugins:
 3. Restore plugin state in `web_app/src/lib/states.ts`
 4. Restore plugin components and imports in Editor.tsx, Header.tsx, Workspace.tsx, Settings.tsx
 5. Re-enable RemoveBG/RealESRGAN toolbar buttons in Editor.tsx
-
-### OpenAI Compatibility (`iopaint/openai_compat/`)
-
-`client.py`: OpenAI image API wrapper
-`model_adapter.py`: Adapts responses to IOPaint format
-`budget/`: Daily/monthly/session spending caps
 
 ### Frontend (`web_app/src/`)
 

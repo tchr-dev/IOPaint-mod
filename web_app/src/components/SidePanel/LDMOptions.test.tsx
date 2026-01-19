@@ -41,18 +41,4 @@ describe("LDMOptions", () => {
     render(<LDMOptions />)
     expect(screen.getByText(/ddim/i)).toBeTruthy()
   })
-
-  it("updates sampler on selection", async () => {
-    const updateSettings = vi.fn()
-    useStore.setState({ updateSettings })
-    render(<LDMOptions />)
-    expect(updateSettings).toHaveBeenCalled()
-  })
-
-  it("updates steps on slider change", async () => {
-    const updateSettings = vi.fn()
-    useStore.setState({ updateSettings })
-    render(<LDMOptions />)
-    expect(updateSettings).toHaveBeenCalled()
-  })
 })

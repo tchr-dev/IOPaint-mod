@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/common.sh"
 
-MODEL="${IOPAINT_MODEL:-openai-compat}"
+MODEL="${IOPAINT_MODEL:-lama}"
 PORT="${IOPAINT_PORT:-8080}"
 VERBOSE="${IOPAINT_VERBOSE:-}"
 NO_SYNC=0

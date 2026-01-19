@@ -14,9 +14,6 @@ from iopaint.model.pool import ModelPool
 from iopaint.model.utils import torch_gc, is_local_files_only
 from iopaint.schema import InpaintRequest, ModelInfo, ModelType
 
-# OpenAI-compatible API constants
-OPENAI_COMPAT_NAME = "openai-compat"
-
 
 class ModelManager:
     def __init__(self, name: str, device: torch.device, **kwargs):

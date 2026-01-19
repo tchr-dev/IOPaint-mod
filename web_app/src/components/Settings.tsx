@@ -44,15 +44,6 @@ const formSchema = z.object({
   enableFileManager: z.boolean(),
   inputDirectory: z.string(),
   outputDirectory: z.string(),
-  enableDownloadMask: z.boolean(),
-  enableManualInpainting: z.boolean(),
-  enableUploadMask: z.boolean(),
-  enableAutoExtractPrompt: z.boolean(),
-  openAIProvider: z.enum(["server", "proxyapi", "openrouter"]),
-  openAIToolMode: z.enum(["local", "prompt", "service"]),
-  openAIDailyCapUsd: z.coerce.number().min(0),
-  openAIMonthlyCapUsd: z.coerce.number().min(0),
-  openAISessionCapUsd: z.coerce.number().min(0),
 })
 
 const TAB_GENERAL = "General"
@@ -70,11 +61,6 @@ export function SettingsDialog() {
     fileManagerState,
     setAppModel,
     setServerConfig,
-    fetchOpenAICapabilities,
-    isOpenAIMode,
-    budgetLimits,
-    refreshBudgetLimits,
-    updateBudgetLimits,
   ] = useStore((state) => [
     state.updateAppState,
     state.settings,
@@ -82,11 +68,6 @@ export function SettingsDialog() {
     state.fileManagerState,
     state.setModel,
     state.setServerConfig,
-    state.fetchOpenAICapabilities,
-    state.openAIState.isOpenAIMode,
-    state.openAIState.budgetLimits,
-    state.refreshBudgetLimits,
-    state.updateBudgetLimits,
   ])
   const { toast } = useToast()
   const [model, setModel] = useState<ModelInfo>(settings.model)
@@ -109,15 +90,6 @@ export function SettingsDialog() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      enableDownloadMask: settings.enableDownloadMask,
-      enableManualInpainting: settings.enableManualInpainting,
-      enableUploadMask: settings.enableUploadMask,
-      enableAutoExtractPrompt: settings.enableAutoExtractPrompt,
-      openAIProvider: settings.openAIProvider,
-      openAIToolMode: settings.openAIToolMode,
-      openAIDailyCapUsd: budgetLimits?.dailyCapUsd ?? 0,
-      openAIMonthlyCapUsd: budgetLimits?.monthlyCapUsd ?? 0,
-      openAISessionCapUsd: budgetLimits?.sessionCapUsd ?? 0,
       inputDirectory: fileManagerState.inputDirectory,
       outputDirectory: fileManagerState.outputDirectory,
     },
@@ -129,51 +101,10 @@ export function SettingsDialog() {
     }
   }, [form, serverConfig, setServerConfig])
 
-  useEffect(() => {
-    if (budgetLimits) {
-      form.setValue("openAIDailyCapUsd", budgetLimits.dailyCapUsd)
-      form.setValue("openAIMonthlyCapUsd", budgetLimits.monthlyCapUsd)
-      form.setValue("openAISessionCapUsd", budgetLimits.sessionCapUsd)
-    }
-  }, [budgetLimits, form])
-
-  useEffect(() => {
-    if (open && isOpenAIMode) {
-      fetchOpenAICapabilities()
-      refreshBudgetLimits()
-    }
-  }, [open, isOpenAIMode, fetchOpenAICapabilities, refreshBudgetLimits])
-
   async function onSubmit(values: z.infer<typeof formSchema>) {
     // Do something with the form values. ✅ This will be type-safe and validated.
-    updateSettings({
-      enableDownloadMask: values.enableDownloadMask,
-      enableManualInpainting: values.enableManualInpainting,
-      enableUploadMask: values.enableUploadMask,
-      enableAutoExtractPrompt: values.enableAutoExtractPrompt,
-      openAIProvider: values.openAIProvider,
-      openAIToolMode: values.openAIToolMode,
-    })
-    if (
-      settings.openAIProvider !== values.openAIProvider &&
-      isOpenAIMode
-    ) {
-      fetchOpenAICapabilities()
-    }
+    // Setting updates for file manager removed/hidden for now
 
-    const shouldUpdateBudgetLimits =
-      !budgetLimits ||
-      budgetLimits.dailyCapUsd !== values.openAIDailyCapUsd ||
-      budgetLimits.monthlyCapUsd !== values.openAIMonthlyCapUsd ||
-      budgetLimits.sessionCapUsd !== values.openAISessionCapUsd
-
-    if (shouldUpdateBudgetLimits) {
-      await updateBudgetLimits({
-        dailyCapUsd: values.openAIDailyCapUsd,
-        monthlyCapUsd: values.openAIMonthlyCapUsd,
-        sessionCapUsd: values.openAISessionCapUsd,
-      })
-    }
 
     // TODO: validate input/output Directory
     // updateFileManagerState({
@@ -281,244 +212,6 @@ export function SettingsDialog() {
         <div className="text-sm text-muted-foreground">
           Mapped preset: {PRESET_CONFIGS[mappedPreset].displayName}
         </div>
-
-        <Separator />
-
-        <FormField
-          control={form.control}
-          name="enableManualInpainting"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <FormLabel>Enable manual inpainting</FormLabel>
-                <FormDescription>
-                  For erase model, click a button to trigger inpainting after
-                  draw mask.
-                </FormDescription>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-
-        <Separator />
-
-        <FormField
-          control={form.control}
-          name="enableDownloadMask"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <FormLabel>Enable download mask</FormLabel>
-                <FormDescription>
-                  Also download the mask after save the inpainting result.
-                </FormDescription>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-
-        <Separator />
-
-        <FormField
-          control={form.control}
-          name="enableAutoExtractPrompt"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <FormLabel>Enable auto extract prompt</FormLabel>
-                <FormDescription>
-                  Automatically extract prompt/negativate prompt from the image
-                  meta.
-                </FormDescription>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-
-        <Separator />
-
-        <FormField
-          control={form.control}
-          name="openAIProvider"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <FormLabel>OpenAI provider</FormLabel>
-                <FormDescription>
-                  Select the OpenAI-compatible API host for OpenAI mode.
-                </FormDescription>
-              </div>
-              <Select
-                onValueChange={field.onChange}
-                defaultValue={field.value}
-              >
-                <FormControl>
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="Select provider" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent align="end">
-                  <SelectGroup>
-                    <SelectItem value="server">Server default</SelectItem>
-                    <SelectItem value="proxyapi">
-                      ProxyAPI (proxyapi.ru)
-                    </SelectItem>
-                    <SelectItem value="openrouter">
-                      OpenRouter (openrouter.ai)
-                    </SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-
-        <Separator />
-
-        <FormField
-          control={form.control}
-          name="openAIToolMode"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <FormLabel>Image tool mode</FormLabel>
-                <FormDescription>
-                  Choose how background removal and upscaling are executed.
-                </FormDescription>
-              </div>
-              <Select
-                onValueChange={field.onChange}
-                defaultValue={field.value}
-              >
-                <FormControl>
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="Select tool mode" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent align="end">
-                  <SelectGroup>
-                    <SelectItem value="local">Local models</SelectItem>
-                    <SelectItem value="prompt">
-                      API via specialized prompts
-                    </SelectItem>
-                    <SelectItem value="service" disabled>
-                      API specialized services (coming soon)
-                    </SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-
-        <Separator />
-
-        <div className="space-y-3">
-          <div className="text-sm font-medium">OpenAI Budget Limits (USD)</div>
-          <FormField
-            control={form.control}
-            name="openAIDailyCapUsd"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <FormLabel>Daily cap</FormLabel>
-                  <FormDescription>0 = unlimited</FormDescription>
-                </div>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    className="w-[220px]"
-                    {...field}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="openAIMonthlyCapUsd"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <FormLabel>Monthly cap</FormLabel>
-                  <FormDescription>0 = unlimited</FormDescription>
-                </div>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    className="w-[220px]"
-                    {...field}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="openAISessionCapUsd"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <FormLabel>Session cap</FormLabel>
-                  <FormDescription>0 = unlimited</FormDescription>
-                </div>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    className="w-[220px]"
-                    {...field}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {/* <FormField
-          control={form.control}
-          name="enableUploadMask"
-          render={({ field }) => (
-            <FormItem className="flex tems-center justify-between">
-              <div className="space-y-0.5">
-                <FormLabel>Enable upload mask</FormLabel>
-                <FormDescription>
-                  Enable upload custom mask to perform inpainting.
-                </FormDescription>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-        <Separator /> */}
       </div>
     )
   }
@@ -637,13 +330,15 @@ export function SettingsDialog() {
           className="max-w-3xl h-[600px]"
           // onEscapeKeyDown={(event) => event.preventDefault()}
           onOpenAutoFocus={(event) => event.preventDefault()}
-          // onPointerDownOutside={(event) => event.preventDefault()}
+        // onPointerDownOutside={(event) => event.preventDefault()}
         >
           <DialogTitle>Settings</DialogTitle>
           <Separator />
 
           <div className="flex flex-row space-x-8 h-full">
-            <div className="flex flex-col space-y-1">
+            {/* Sidebar removed to simplify UI */}
+
+            {/* <div className="flex flex-col space-y-1">
               {TAB_NAMES.map((item) => (
                 <Button
                   key={item}
@@ -657,17 +352,13 @@ export function SettingsDialog() {
                   {item}
                 </Button>
               ))}
-            </div>
-            <Separator orientation="vertical" />
+            </div> 
+            <Separator orientation="vertical" /> */}
             <Form {...form}>
               <div className="flex w-full justify-center">
                 <form onSubmit={form.handleSubmit(onSubmit)}>
-                  {tab === TAB_GENERAL ? renderGeneralSettings() : <></>}
-                  {/* {tab === TAB_FILE_MANAGER ? (
-                    renderFileManagerSettings()
-                  ) : (
-                    <></>
-                  )} */}
+                  {/* Always render general settings which only contains Model selector now */}
+                  {renderGeneralSettings()}
 
                   <div className="absolute right-10 bottom-6">
                     <Button onClick={() => onOpenChange(false)}>Ok</Button>

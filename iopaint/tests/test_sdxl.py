@@ -9,6 +9,8 @@ import torch
 
 from iopaint.model_manager import ModelManager
 from iopaint.schema import HDStrategy, SDSampler
+
+pytestmark = pytest.mark.heavy
 from iopaint.tests.test_model import get_config, assert_equal
 
 

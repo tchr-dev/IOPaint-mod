@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/common.sh"
 
-MODEL="${IOPAINT_MODEL:-openai-compat}"
+MODEL="${IOPAINT_MODEL:-lama}"
 PORT="${IOPAINT_PORT:-8080}"
 VERBOSE="${IOPAINT_VERBOSE:-}"
 FRONTEND_PORT="${IOPAINT_FRONTEND_PORT:-5173}"
@@ -21,7 +21,7 @@ Starts:
   - Frontend: Vite dev server (web_app)
 
 Options:
-  --model           Model name (default: openai-compat)
+  --model           Model name (default: lama)
   --port            Backend port (default: 8080)
   --frontend-port   Frontend port hint for messaging (default: 5173)
   --verbose, -v     Enable verbose logging (sets IOPAINT_VERBOSE)

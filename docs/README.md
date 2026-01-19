@@ -26,7 +26,7 @@ A structured documentation system for the IOPaint project.
 
 ### Naming Conventions
 
-- Use **lowercase kebab-case**: `ui-architecture.md`, `getting-started.md`
+- Use **lowercase kebab-case**: `ui.md`, `getting-started.md`
 - **No spaces**: Use hyphens instead of spaces
 - **Numbered when sequential**: ADRs (`001-topic.md`), Epics (`epic-001-title.md`)
 - **Date prefix for reports**: `2026-01-18-audit.md`

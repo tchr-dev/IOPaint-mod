@@ -116,7 +116,6 @@ def utilities_menu() -> Optional[str]:
         return None
 
     options = [
-        "⚙️  Job utilities",
         "🐳 Docker utilities", 
         "← Back to main menu"
     ]
@@ -131,7 +130,6 @@ def utilities_menu() -> Optional[str]:
         return "back"
 
     choice_map = {
-        "⚙️  Job utilities": "jobs",
         "🐳 Docker utilities": "docker"
     }
     
@@ -182,10 +180,7 @@ def extract_description(filename: str) -> str:
         'anytext': 'anytext',
         'api_error_handling': 'api error handling',
         'brushnet': 'brushnet',
-        'budget_guard': 'budget guard',
-        'budget_limits': 'budget limits',
         'controlnet': 'controlnet',
-        'dedupe_fingerprint': 'dedupe fingerprint',
         'external_services_config': 'external services config',
         'history_snapshots_api': 'history snapshots api',
         'instruct_pix2pix': 'instruct pix2pix',
@@ -196,11 +191,6 @@ def extract_description(filename: str) -> str:
         'model_switch': 'model switch',
         'model': 'model',
         'models_cache_api': 'models cache api',
-        'openai_capabilities': 'openai capabilities',
-        'openai_client': 'openai client',
-        'openai_errors': 'openai errors',
-        'openai_protocol_integration': 'openai protocol integration',
-        'openai_tools_api': 'openai tools api',
         'outpainting': 'outpainting',
         'paint_by_example': 'paint by example',
         'plugins': 'plugins',
@@ -220,10 +210,6 @@ def categorize_test(filename: str) -> str:
         return 'API'
     elif 'model' in filename or 'sd' in filename or 'adjust_mask' in filename or 'load_img' in filename or 'save' in filename:
         return 'Models'
-    elif 'openai' in filename:
-        return 'OpenAI'
-    elif 'budget' in filename:
-        return 'Budget'
     elif 'plugins' in filename:
         return 'Plugins'
     else:

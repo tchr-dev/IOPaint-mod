@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 import torch
 
+pytestmark = pytest.mark.heavy
+
 from iopaint.model_manager import ModelManager
 from iopaint.schema import HDStrategy, SDSampler, PowerPaintTask
 

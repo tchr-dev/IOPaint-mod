@@ -74,4 +74,8 @@ def entry_point():
 
     fix_window_pytorch()
 
+    # Auto-download curated models
+    from iopaint.download import download_curated_models
+    download_curated_models()
+
     typer_app()

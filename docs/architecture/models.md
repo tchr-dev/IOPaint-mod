@@ -115,30 +115,6 @@ DIFFUSION_MODELS = [
 
 ### 2.3 Special Diffusion Models
 
-These models have unique capabilities beyond standard inpainting:
-
-| Model | Location | Special Features |
-|-------|----------|------------------|
-| **PowerPaint** | `iopaint/model/power_paint/power_paint.py` | Context-aware editing, object removal |
-| **AnyText** | `iopaint/model/anytext/anytext_model.py` | Text rendering in images |
-| **InstructPix2Pix** | `iopaint/model/instruct_pix2pix.py` | Instruction-based editing |
-| **PaintByExample** | `iopaint/model/paint_by_example.py` | Reference image-guided editing |
-| **Kandinsky 2.2** | `iopaint/model/kandinsky.py` | Kandinsky V22 decoder |
-
-### 2.4 OpenAI-Compatible API Models
-
-A virtual model type (`iopaint/schema.py:29`) that routes requests to external APIs:
-
-```python
-OPENAI_COMPAT = "openai-compat"  # OpenAI-compatible API (gpt-image-1, dall-e-3, etc.)
-```
-
-**Characteristics:**
-- **No local files**: Does not require model downloads
-- **API-based**: Routes to OpenAI, DALL-E, or compatible APIs
-- **Budget management**: Includes spending limits (`iopaint/budget/`)
-- **Integrated discovery**: Discovered via `scan_inpaint_models()` since OpenAICompatModel returns `is_downloaded() == True`
-
 ### 2.5 Plugin Models
 
 Plugin models are provided by IOPaint's plugin system and are discovered dynamically. These include specialized models for tasks like upscaling, face restoration, and background removal.
@@ -168,13 +144,11 @@ flowchart LR
     A --> D[scan_diffusers_models]
     A --> E[scan_converted_diffusers_models]
     A --> F[scan_plugin_models]
-    A --> G[Add OpenAI-Compat]
     B --> H[Combine Results]
     C --> H
     D --> H
     E --> H
     F --> H
-    G --> H
     H --> I[Return List[ModelInfo]]
 ```
 
@@ -346,20 +320,7 @@ class ModelInfo(BaseModel):
             ModelType.DIFFUSERS_SDXL,
             ModelType.DIFFUSERS_SD_INPAINT,
             ModelType.DIFFUSERS_SDXL_INPAINT,
-            ModelType.OPENAI_COMPAT,
         ]
-    
-    @computed_field
-    @property
-    def controlnets(self) -> List[str]:
-        """Returns available ControlNet options for this model"""
-        # ...
-    
-    @computed_field
-    @property
-    def support_controlnet(self) -> bool:
-        """Whether ControlNet can be used with this model"""
-        # ...
 ```
 
 ## 4. Download System
@@ -436,10 +397,6 @@ For HuggingFace diffusion models, downloads use the diffusers library:
 def cli_download_model(model: str):
     from iopaint.model import models
     from iopaint.model.utils import handle_from_pretrained_exceptions
-    
-    if model == OPENAI_COMPAT_NAME:
-        logger.info("OpenAI-compatible model is API-only; no download needed.")
-        return
     
     if model in models and models[model].is_erase_model:
         logger.info(f"Downloading {model}...")
@@ -616,11 +573,9 @@ flowchart TB
         A3 --> A4[scan_inpaint_models]
         A3 --> A5[scan_diffusers_models]
         A3 --> A6[scan_single_file_models]
-        A3 --> A7[Add OpenAI-Compat]
         A4 --> A8[Combine all models]
         A5 --> A8
         A6 --> A8
-        A7 --> A8
         A8 --> A9[Store in available_models]
     end
     

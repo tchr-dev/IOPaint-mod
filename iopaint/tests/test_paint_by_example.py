@@ -1,6 +1,8 @@
 import cv2
 import pytest
 from PIL import Image
+
+pytestmark = pytest.mark.heavy
 from iopaint.helper import encode_pil_to_base64
 
 from iopaint.model_manager import ModelManager

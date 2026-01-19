@@ -1,0 +1,21 @@
+Major refactor: Remove OpenAI compatibility and simplify architecture
+
+This commit removes significant portions of the codebase related to:
+- OpenAI compatibility layer and API integration
+- Budget management and cost tracking features
+- Custom storage implementation
+- Job runner functionality
+- Related tests and documentation
+
+The changes streamline the codebase to focus on core inpainting functionality:
+- Removed over 120 files related to non-core features
+- Simplified API endpoints in iopaint/api.py
+- Updated frontend to remove OpenAI-related components
+- Cleaned up documentation and planning files
+- Updated dependencies and build configurations
+
+This refactoring makes the project more maintainable by:
+1. Removing complex, unused features
+2. Simplifying the architecture
+3. Reducing codebase size by ~75%
+4. Focusing on core inpainting capabilities

@@ -3,7 +3,7 @@ import { act } from "react-dom/test-utils"
 import { createRoot } from "react-dom/client"
 
 import { SettingsDialog } from "../Settings"
-import type { ModelInfo, ServerConfig, BudgetLimits } from "@/lib/types"
+import type { ModelInfo, ServerConfig } from "@/lib/types"
 
 // Mock declarations first
 const useQueryMock = vi.fn()
@@ -141,8 +141,6 @@ describe("Settings", () => {
     enableManualInpainting: true,
     enableUploadMask: false,
     enableAutoExtractPrompt: true,
-    openAIProvider: "server",
-    openAIToolMode: "local",
     showCropper: false,
     showExtender: false,
     extenderDirection: "xy",
@@ -175,18 +173,9 @@ describe("Settings", () => {
     adjustMaskKernelSize: 12,
   }
 
-  const mockBudgetLimits: BudgetLimits = {
-    dailyCapUsd: 10,
-    monthlyCapUsd: 100,
-    sessionCapUsd: 5,
-  }
-
   const updateSettings = vi.fn()
   const setAppModel = vi.fn()
   const setServerConfig = vi.fn()
-  const fetchOpenAICapabilities = vi.fn()
-  const refreshBudgetLimits = vi.fn()
-  const updateBudgetLimits = vi.fn()
 
   beforeEach(() => {
     localStorage.clear()
@@ -206,11 +195,6 @@ describe("Settings", () => {
       { inputDirectory: "", outputDirectory: "" }, // fileManagerState
       setAppModel,
       setServerConfig,
-      fetchOpenAICapabilities,
-      false, // isOpenAIMode
-      mockBudgetLimits,
-      refreshBudgetLimits,
-      updateBudgetLimits,
     ])
     
     // Mock API functions
@@ -290,29 +274,6 @@ describe("Settings", () => {
     container.remove()
   })
 
-  it("updates budget limits when values change", async () => {
-    const container = document.createElement("div")
-    document.body.appendChild(container)
-    const root = createRoot(container)
-
-    await act(async () => {
-      root.render(<SettingsDialog />)
-    })
-
-    // Wait for the component to be fully rendered
-    // Dialog is already open because useToggle is mocked to return true
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    // Check that budget limit fields are present
-    expect(document.body.textContent).toContain("OpenAI Budget Limits")
-    expect(document.body.textContent).toContain("Daily cap")
-
-    await act(async () => {
-      root.unmount()
-    })
-    container.remove()
-  })
-
   it("handles single model case (disabled dropdown)", async () => {
     // Mock single model config
     const singleModelConfig = {
@@ -334,11 +295,6 @@ describe("Settings", () => {
       { inputDirectory: "", outputDirectory: "" }, // fileManagerState
       setAppModel,
       setServerConfig,
-      fetchOpenAICapabilities,
-      false, // isOpenAIMode
-      mockBudgetLimits,
-      refreshBudgetLimits,
-      updateBudgetLimits,
     ])
 
     const container = document.createElement("div")

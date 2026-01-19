@@ -106,7 +106,7 @@ Enable `strict: true` in tsconfig; prefer proper types over `any`
 ## Documentation
 
 ### File Naming
-- Use **lowercase kebab-case**: `ui-architecture.md`
+- Use **lowercase kebab-case**: `ui.md`
 - No spaces: Use hyphens instead
 - Numbered when sequential: `001-topic.md`
 

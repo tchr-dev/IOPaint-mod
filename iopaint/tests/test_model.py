@@ -1,6 +1,8 @@
 import pytest
 import torch
 
+pytestmark = pytest.mark.heavy
+
 from iopaint.model_manager import ModelManager
 from iopaint.schema import HDStrategy, LDMSampler
 from iopaint.tests.utils import (

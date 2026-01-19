@@ -34,11 +34,6 @@ def scan_models():
     models = get_core_models()
     models += scan_plugin_models()  # Unified plugin integration
     return models
-
-# OpenAI models follow same is_downloaded() pattern as core models
-class OpenAICompatModel(InpaintModel):
-    def is_downloaded(self) -> bool:
-        return bool(self.api_key)  # No separate handling needed
 ```
 
 ### 2. Plugin Model Integration
@@ -85,7 +80,6 @@ class ModelType(Enum):
     INPAINT = "inpaint"
     DIFFUSERS_SD = "diffusers_sd"
     DIFFUSERS_SDXL = "diffusers_sdxl"
-    OPENAI_COMPAT = "openai_compat"
     PLUGIN = "plugin"  # NEW
 ```
 

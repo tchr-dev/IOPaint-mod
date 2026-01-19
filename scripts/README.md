@@ -62,7 +62,7 @@ Unified development workflow scripts for IOPaint, organized by platform.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `IOPAINT_MODEL` | Model name | `openai-compat` |
+| `IOPAINT_MODEL` | Model name | `lama` |
 | `IOPAINT_PORT` | Backend port | `8080` |
 | `IOPAINT_FRONTEND_PORT` | Frontend port hint | `5173` |
 | `IOPAINT_VERBOSE` | Enable verbose logging | (empty) |
@@ -76,7 +76,6 @@ Unified development workflow scripts for IOPaint, organized by platform.
 | `build` | ✓ | ✓ | Build frontend only |
 | `stop` | ✓ | ✗ | Stop servers by port |
 | `test` | ✓ | ✓ | Run tests (pytest/npm) |
-| `jobs` | ✓ | ✗ | Cancel stuck jobs |
 | `docker` | ✓ | ✗ | Build Docker images |
 | `publish` | ✓ | ✗ | Build for PyPI |
 

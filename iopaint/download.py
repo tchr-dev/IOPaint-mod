@@ -26,16 +26,9 @@ CACHE_VERSION = 1
 # They can be used in future refactoring for more structured error handling
 
 # OpenAI-compatible API constants
-OPENAI_COMPAT_NAME = "openai-compat"
-
-
 def cli_download_model(model: str):
     from iopaint.model import models
     from iopaint.model.utils import handle_from_pretrained_exceptions
-
-    if model == OPENAI_COMPAT_NAME:
-        logger.info("OpenAI-compatible model is API-only; no download needed.")
-        return
 
     if model in models and models[model].is_erase_model:
         logger.info(f"Downloading {model}...")
@@ -243,12 +236,7 @@ def scan_inpaint_models(model_dir: Path) -> List[ModelInfo]:
                 )
             )
         elif not m.is_erase_model and m.is_downloaded():
-            # Include API-based models like OpenAICompatModel
-            # Determine model type based on model name for now
-            if name == "openai-compat":
-                model_type = ModelType.OPENAI_COMPAT
-            else:
-                model_type = ModelType.UNKNOWN
+            model_type = ModelType.UNKNOWN
             res.append(
                 ModelInfo(
                     name=name,
@@ -441,13 +429,58 @@ def scan_plugin_models() -> List[ModelInfo]:
     return res
 
 
+def download_curated_models():
+    """Auto-download curated models if they are not present."""
+    import torch
+    logger.info("Checking and downloading curated models...")
+    
+    for model_name in CURATED_MODELS:
+        try:
+            if model_name == "lama":
+                from iopaint.model.lama import LaMa
+                if not LaMa.is_downloaded():
+                    logger.info(f"Downloading {model_name}...")
+                    LaMa.download()
+            elif model_name in ["u2net", "birefnet-general-lite"]:
+                logger.info(f"Ensuring {model_name} is available...")
+                from iopaint.plugins.remove_bg import RemoveBG
+                # Initializing the plugin triggers download if missing
+                RemoveBG(model_name, device=torch.device("cpu"))
+            elif model_name in ["mobile_sam", "sam2_tiny"]:
+                logger.info(f"Ensuring {model_name} is available...")
+                from iopaint.plugins.interactive_seg import InteractiveSeg
+                InteractiveSeg(model_name, device=torch.device("cpu"))
+                
+        except Exception as e:
+            logger.warning(f"Failed to auto-download {model_name}: {e}")
+
+
+CURATED_MODELS = [
+    "lama", 
+    "u2net", 
+    "birefnet-general-lite", 
+    "mobile_sam", 
+    "sam2_tiny",
+]
+
 def scan_models() -> List[ModelInfo]:
     model_dir = Path(os.getenv("XDG_CACHE_HOME", DEFAULT_MODEL_DIR))
-    available_models = []
-    available_models.extend(scan_inpaint_models(model_dir))
-    available_models.extend(scan_single_file_diffusion_models(model_dir))
-    available_models.extend(scan_diffusers_models())
-    available_models.extend(scan_converted_diffusers_models(model_dir))
-    available_models.extend(scan_plugin_models())
+    all_models = []
+    all_models.extend(scan_inpaint_models(model_dir))
+    all_models.extend(scan_single_file_diffusion_models(model_dir))
+    all_models.extend(scan_diffusers_models())
+    all_models.extend(scan_converted_diffusers_models(model_dir))
+    all_models.extend(scan_plugin_models())
+
+    # Filter by curated list
+    available_models = [m for m in all_models if m.name in CURATED_MODELS]
+
+    # Ensure LaMa is always available (even if not downloaded)
+    if not any(m.name == "lama" for m in available_models):
+        available_models.insert(0, ModelInfo(
+            name="lama",
+            path="lama",
+            model_type=ModelType.INPAINT,
+        ))
 
     return available_models
