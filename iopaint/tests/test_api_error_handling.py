@@ -75,22 +75,28 @@ def test_client(tmp_path, monkeypatch):
     """Create a test client with mocked dependencies."""
     api_config = _make_api_config(tmp_path)
 
-    # Set environment for budget data
     monkeypatch.setenv("AIE_DATA_DIR", str(tmp_path / "budget_data"))
 
-    # Mock the model manager to avoid actual model loading
-    monkeypatch.setattr("iopaint.api.Api._build_model_manager", lambda self: Mock())
-    monkeypatch.setattr("iopaint.api.Api._build_plugins", lambda self: {})
+    mock_model_manager = Mock()
+    mock_model_manager.name = "lama"
+    mock_model_manager.current_model = Mock()
+    mock_model_manager.current_model.name = "lama"
 
-    # Create FastAPI app and API instance
+    mock_plugins = {}
+
+    mock_openai_config = Mock()
+    mock_openai_config.is_enabled = False
+
+    monkeypatch.setattr("iopaint.api.Api._build_model_manager", lambda self: mock_model_manager)
+    monkeypatch.setattr("iopaint.api.Api._build_plugins", lambda self: mock_plugins)
+    monkeypatch.setattr("iopaint.api.OpenAIConfig", lambda: mock_openai_config)
+
     app = FastAPI()
     api = Api(app, api_config)
 
-    # Mock the model manager methods
-    api.model_manager = Mock()
-    api.model_manager.name = "lama"
-    api.model_manager.current_model = Mock()
-    api.model_manager.current_model.name = "lama"
+    api.model_manager = mock_model_manager
+    api.plugins = mock_plugins
+    api.openai_config = mock_openai_config
 
     return TestClient(app)
 

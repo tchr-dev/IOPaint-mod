@@ -378,11 +378,8 @@ def test_interactive():
         from scripts.unix.cli_menu import test_file_menu
         result = test_file_menu()
         if result and result.endswith('.py'):
-            # Run the selected test file
-            import subprocess
             cmd = f"uv run pytest iopaint/tests/{result} -v"
-            typer.echo(f"Running: {cmd}")
-            subprocess.run(cmd, shell=True, check=True)
+            _run_test_with_logging(cmd)
         elif result == "back":
             typer.echo("Returned to main menu")
         else:
@@ -392,22 +389,52 @@ def test_interactive():
         raise typer.Exit(1)
 
 
+def _run_test_with_logging(cmd: str) -> int:
+    """Run pytest command with logging to ./logs/."""
+    from pathlib import Path
+    from datetime import datetime
+    import subprocess
+
+    log_dir = Path("./logs")
+    log_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    log_file = log_dir / f"test-run-{timestamp}.log"
+
+    typer.echo(f"Running: {cmd}")
+    typer.echo(f"Log file: {log_file}")
+
+    with open(log_file, "w") as f:
+        f.write(f"Running: {cmd}\n")
+        f.write("=" * 60 + "\n\n")
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        f.write(result.stdout)
+        if result.stderr:
+            f.write(result.stderr)
+        f.write("\n" + "=" * 60 + "\n")
+        f.write(f"Return code: {result.returncode}\n")
+
+    typer.echo(result.stdout)
+    if result.stderr:
+        typer.echo(result.stderr, err=True)
+
+    if result.returncode != 0:
+        raise typer.Exit(result.returncode)
+
+    return result.returncode
+
+
 @test_app.command("smoke", help="Run backend smoke test")
 def test_smoke():
     """Run smoke test (test_model.py)."""
-    import subprocess
     cmd = "uv run pytest iopaint/tests/test_model.py -v"
-    typer.echo(f"Running: {cmd}")
-    subprocess.run(cmd, shell=True, check=True)
+    _run_test_with_logging(cmd)
 
 
 @test_app.command("full", help="Run all backend tests")
 def test_full():
     """Run all backend tests."""
-    import subprocess
     cmd = "uv run pytest -v"
-    typer.echo(f"Running: {cmd}")
-    subprocess.run(cmd, shell=True, check=True)
+    _run_test_with_logging(cmd)
 
 
 @test_app.command("file", help="Run specific test file")
@@ -415,10 +442,8 @@ def test_file(
     file_path: str = typer.Argument(..., help="Path to test file")
 ):
     """Run a specific test file."""
-    import subprocess
     cmd = f"uv run pytest {file_path} -v"
-    typer.echo(f"Running: {cmd}")
-    subprocess.run(cmd, shell=True, check=True)
+    _run_test_with_logging(cmd)
 
 
 @test_app.command("k", help="Run tests matching pattern")
@@ -426,10 +451,8 @@ def test_pattern(
     pattern: str = typer.Argument(..., help="Test pattern to match")
 ):
     """Run tests matching a pattern (-k flag)."""
-    import subprocess
     cmd = f"uv run pytest -k \"{pattern}\" -v"
-    typer.echo(f"Running: {cmd}")
-    subprocess.run(cmd, shell=True, check=True)
+    _run_test_with_logging(cmd)
 
 
 @test_app.command("custom", help="Run pytest with custom arguments")
@@ -437,10 +460,8 @@ def test_custom(
     args: str = typer.Argument(..., help="Custom pytest arguments")
 ):
     """Run pytest with custom arguments."""
-    import subprocess
     cmd = f"uv run pytest {args}"
-    typer.echo(f"Running: {cmd}")
-    subprocess.run(cmd, shell=True, check=True)
+    _run_test_with_logging(cmd)
 
 
 @test_app.command("test-lint", help="Lint test files")
