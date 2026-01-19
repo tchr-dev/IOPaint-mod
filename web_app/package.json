@@ -63,6 +63,8 @@
   },
   "devDependencies": {
     "@tanstack/eslint-plugin-query": "^5.8.4",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/axios": "^0.14.0",
     "@types/flexsearch": "^0.7.6",
     "@types/lodash": "^4.14.201",

@@ -3,9 +3,25 @@ set -euo pipefail
 
 # Shared helpers for IOPaint Unix scripts.
 
-log()  { echo "[iopaint] $*"; }
-warn() { echo "[iopaint][WARN] $*" >&2; }
-die()  { echo "[iopaint][ERROR] $*" >&2; exit 1; }
+# Colors
+if [[ -t 1 ]]; then
+    readonly RED='\033[0;31m'
+    readonly GREEN='\033[0;32m'
+    readonly YELLOW='\033[1;33m'
+    readonly BLUE='\033[0;34m'
+    readonly NC='\033[0m' # No Color
+else
+    readonly RED=''
+    readonly GREEN=''
+    readonly YELLOW=''
+    readonly BLUE=''
+    readonly NC=''
+fi
+
+log()  { echo -e "${BLUE}[iopaint]${NC} $*"; }
+success() { echo -e "${BLUE}[iopaint]${NC} ${GREEN}$*${NC}"; }
+warn() { echo -e "${BLUE}[iopaint]${YELLOW}[WARN] $*${NC}" >&2; }
+die()  { echo -e "${BLUE}[iopaint]${RED}[ERROR] $*${NC}" >&2; exit 1; }
 
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
@@ -13,9 +29,23 @@ need_cmd() {
     local c
     for c in "$@"; do
         if ! has_cmd "$c"; then
-            die "Missing required command: $c"
+            die "Missing required command: ${YELLOW}$c${NC}"
         fi
     done
+}
+
+check_dependencies() {
+    local missing=()
+    for cmd in "$@"; do
+        if ! has_cmd "$cmd"; then
+            missing+=("$cmd")
+        fi
+    done
+    
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        return 1
+    fi
+    return 0
 }
 
 project_root() {

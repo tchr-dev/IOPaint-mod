@@ -80,6 +80,7 @@ def main_menu() -> Optional[str]:
 
     options = [
         "📋 List all test files",
+        "📋 List frontend test files",
         "🚀 Backend smoke (iopaint/tests/test_model.py)",
         "🧪 Backend full (pytest -v)",
         "📄 Backend single test file",

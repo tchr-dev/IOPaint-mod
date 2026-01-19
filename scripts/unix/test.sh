@@ -14,15 +14,21 @@ usage() {
 Usage:
   ./run.sh test               # interactive menu
   ./run.sh test help          # show detailed help for all subcommands
-  ./run.sh test list          # list all available test files
+  ./run.sh test list          # list all available Python test files
+  ./run.sh test fe-list       # list all available frontend test files
+  ./run.sh test fe-test       # run all frontend tests
+  ./run.sh test fe-test <file> # run specific frontend test file
   ./run.sh test smoke|full|file|k|custom|fe-build|fe-lint|fe-custom|test-lint [...]
 
 Examples:
-  ./run.sh test smoke
+  ./run.sh smoke
   ./run.sh test file iopaint/tests/test_model.py
   ./run.sh test k "Model"
   ./run.sh test custom "-k Model -v"
   ./run.sh test list
+  ./run.sh test fe-list
+  ./run.sh test fe-test
+  ./run.sh test fe-test CanvasView
 USAGE
 }
 
@@ -70,6 +76,55 @@ list_tests() {
     echo "  ./run.sh test k \"<pattern>\""
 }
 
+list_fe_tests() {
+    echo "Available Frontend Test Files in web_app/src/"
+    echo "=============================================="
+    echo ""
+
+    # Find all test files in web_app
+    local test_files
+    test_files=$(find web_app/src -name "*.test.tsx" -type f 2>/dev/null | sort)
+
+    if [[ -z "$test_files" ]]; then
+        echo "No test files found in web_app/src/"
+        echo "Current directory: $(pwd)"
+        echo "web_app/src directory exists: $(test -d web_app/src && echo 'yes' || echo 'no')"
+        return
+    fi
+
+    local count=0
+    while IFS= read -r file; do
+        ((count++))
+        local filename
+        filename=$(basename "$file")
+
+        # Try to extract a brief description from the file
+        local description=""
+        if [[ -f "$file" ]]; then
+            # Look for describe block in first 30 lines
+            description=$(head -30 "$file" 2>/dev/null | grep -E 'describe\(' | head -1 | sed 's/.*describe[[:space:]]*([[:space:]]*["\x27]//' | sed 's/["\x27].*//' | tr -d ' ' || true)
+            if [[ -z "$description" ]]; then
+                description=$(echo "$filename" | sed 's/\.test\.tsx//' | sed 's/-/ /g' | sed 's/\b\w/\U&/g')
+            fi
+        fi
+
+        # Get relative path
+        local relpath="${file#web_app/src/}"
+        printf "   %-50s - %s\n" "$relpath" "${description:-Test}"
+    done <<< "$test_files"
+
+    echo ""
+    echo "Total: $count frontend test files"
+    echo ""
+    echo "Run frontend tests with:"
+    echo "  ./run.sh test fe-test                  # Run all frontend tests"
+    echo "  ./run.sh test fe-test <file>           # Run specific test"
+    echo "  ./run.sh test fe-test -k \"<pattern>\"  # Run tests matching pattern"
+    echo ""
+    echo "Or directly:"
+    echo "  cd web_app && npm run test"
+}
+
 help_detailed() {
     cat <<'HELP'
 Detailed Test Runner Help
@@ -77,9 +132,25 @@ Detailed Test Runner Help
 
 SUBCOMMANDS:
 
-  list          List all available test files
+  list          List all available Python test files
                 Shows all test files in iopaint/tests/ with descriptions
                 Use: See what tests are available before running them
+
+  fe-list       List all available frontend test files
+                Shows all test files in web_app/src/ with descriptions
+                Use: See what frontend tests are available
+
+  fe-test       Run all frontend tests
+                Runs: cd web_app && npm run test
+                Use: Run all Vitest tests in the frontend
+
+  fe-test <file> Run specific frontend test file
+                Runs: cd web_app && npm run test -- <file>
+                Use: Run a single test file, e.g., fe-test CanvasView.test.tsx
+
+  fe-test -k <pattern> Run frontend tests matching pattern
+                Runs: cd web_app && npm run test -- -k "<pattern>"
+                Use: Run tests by name pattern, e.g., fe-test -k "Canvas"
 
   smoke         Run backend smoke test (single test file)
                 Runs: pytest iopaint/tests/test_model.py -v
@@ -114,23 +185,29 @@ SUBCOMMANDS:
                 Use: Check frontend code quality
 
   fe-custom <script> Run custom frontend npm script
-                     Runs: cd web_app && npm run <script>
-                     Use: Run any frontend script, e.g., ./run.sh test fe-custom test
+                       Runs: cd web_app && npm run <script>
+                       Use: Run any frontend script, e.g., ./run.sh test fe-custom test
 
 EXAMPLES:
 
-  # List all available tests
+  # List tests
   ./run.sh test list
+  ./run.sh test fe-list
 
-  # Run all tests
+  # Run backend tests
+  ./run.sh test smoke
   ./run.sh test full
-
-  # Test specific functionality
   ./run.sh test k "budget"
   ./run.sh test file iopaint/tests/test_api_error_handling.py
 
-  # Lint test files
+  # Run frontend tests
+  ./run.sh test fe-test
+  ./run.sh test fe-test CanvasView.test.tsx
+  ./run.sh test fe-test -k "Canvas"
+
+  # Lint
   ./run.sh test test-lint
+  ./run.sh test fe-lint
 
   # Custom pytest options
   ./run.sh test custom "--tb=short -x"
@@ -138,11 +215,11 @@ EXAMPLES:
 
   # Frontend operations
   ./run.sh test fe-build
-  ./run.sh test fe-lint
+  ./run.sh test fe-custom test
 
 LOGGING:
   All test runs are logged to ./logs/test-run-YYYYMMDD-HHMMSS.log
-  Check the log file for detailed output and debugging information.
+  Check the log file for detailed output and debugging information
 HELP
 }
 
@@ -183,37 +260,39 @@ run_cmd_allow_fail() {
 print_menu() {
     cat <<'MENU'
 Select a test suite:
-  1) List all test files
-  2) Backend smoke (iopaint/tests/test_model.py)
-  3) Backend full (pytest -v)
-  4) Backend single test file
-  5) Backend single test name (-k)
-  6) Backend custom pytest args
-  7) Test lint (ruff check/format)
-  8) Frontend build (npm run build)
+  1) List Python test files
+  2) List frontend test files
+  3) Backend smoke (iopaint/tests/test_model.py)
+  4) Backend full (pytest -v)
+  5) Backend single test file
+  6) Backend single test name (-k)
+  7) Backend custom pytest args
+  8) Frontend all tests
   9) Frontend lint (npm run lint)
-  10) Frontend custom npm script
-  11) Help (detailed help)
-  12) Quit
+  10) Frontend build (npm run build)
+  11) Test lint (ruff check/format)
+  12) Help (detailed help)
+  13) Quit
 MENU
 }
 
 choose_suite() {
     local choice
-    read -r -p "Enter choice [1-12]: " choice
+    read -r -p "Enter choice [1-13]: " choice
     case "$choice" in
         1) echo "list" ;;
-        2) echo "smoke" ;;
-        3) echo "full" ;;
-        4) echo "file" ;;
-        5) echo "k" ;;
-        6) echo "custom" ;;
-        7) echo "test-lint" ;;
-        8) echo "fe-build" ;;
+        2) echo "fe-list" ;;
+        3) echo "smoke" ;;
+        4) echo "full" ;;
+        5) echo "file" ;;
+        6) echo "k" ;;
+        7) echo "custom" ;;
+        8) echo "fe-test" ;;
         9) echo "fe-lint" ;;
-        10) echo "fe-custom" ;;
-        11) echo "help" ;;
-        12) echo "quit" ;;
+        10) echo "fe-build" ;;
+        11) echo "test-lint" ;;
+        12) echo "help" ;;
+        13) echo "quit" ;;
         *) echo "invalid" ;;
     esac
 }
@@ -249,7 +328,7 @@ python_cli_menu() {
                 continue
                 ;;
             *.py)
-                # Direct file selection from test file menu
+                # Direct file selection from Python CLI
                 echo "$choice"
                 return 0
                 ;;
@@ -257,17 +336,18 @@ python_cli_menu() {
                 # Main menu selection
                 case "$choice" in
                     1) menu_type="test-files" ;;
-                    2) echo "smoke" && return 0 ;;
-                    3) echo "full" && return 0 ;;
-                    4) echo "file" && return 0 ;;
-                    5) echo "k" && return 0 ;;
-                    6) echo "custom" && return 0 ;;
-                    7) echo "test-lint" && return 0 ;;
-                    8) echo "fe-build" && return 0 ;;
+                    2) echo "fe-list" && return 0 ;;
+                    3) echo "smoke" && return 0 ;;
+                    4) echo "full" && return 0 ;;
+                    5) echo "file" && return 0 ;;
+                    6) echo "k" && return 0 ;;
+                    7) echo "custom" && return 0 ;;
+                    8) echo "fe-test" && return 0 ;;
                     9) echo "fe-lint" && return 0 ;;
-                    10) echo "fe-custom" && return 0 ;;
-                    11) echo "help" && return 0 ;;
-                    12) echo "quit" && return 0 ;;
+                    10) echo "fe-build" && return 0 ;;
+                    11) echo "test-lint" && return 0 ;;
+                    12) echo "help" && return 0 ;;
+                    13) echo "quit" && return 0 ;;
                 esac
                 ;;
             *)
@@ -302,6 +382,17 @@ main() {
     case "$suite" in
         list)
             list_tests
+            ;;
+        fe-list)
+            list_fe_tests
+            ;;
+        fe-test)
+            shift
+            if [[ -z "$*" ]]; then
+                run_cmd "cd web_app && npm run test"
+            else
+                run_cmd "cd web_app && npm run test -- $*"
+            fi
             ;;
         *.py)
             # Direct file selection from Python CLI

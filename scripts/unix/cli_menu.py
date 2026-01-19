@@ -153,6 +153,27 @@ def get_test_files() -> List[Tuple[str, str]]:
 
     return test_files
 
+def get_frontend_test_files() -> List[Tuple[str, str]]:
+    """Scan for frontend test files."""
+    test_dir = Path("web_app/src")
+    if not test_dir.exists():
+        return []
+
+    test_files = []
+    # Recursively find .test.tsx files
+    for file_path in sorted(test_dir.rglob("*.test.tsx")):
+        # Use relative path from web_app/src (which is effectively project_root/web_app/src)
+        # We want path relative to project root? No, rel to src for display?
+        # Let's keep it simple: relative to src for display.
+        rel_path = file_path.relative_to(test_dir)
+        filename = str(rel_path)
+        
+        # Simple description from filename
+        description = filename.replace('.test.tsx', '').replace('/', ' > ')
+        test_files.append((filename, description))
+
+    return test_files
+
 def extract_description(filename: str) -> str:
     """Extract test description from filename."""
     # Map common test file patterns to descriptions
@@ -215,6 +236,7 @@ def test_main_menu() -> Optional[str]:
 
     options = [
         "📋 List all test files",
+        "📋 List frontend test files",
         "🚀 Backend smoke (iopaint/tests/test_model.py)",
         "🧪 Backend full (pytest -v)",
         "🔍 Backend single test name (-k)",
@@ -239,15 +261,16 @@ def test_main_menu() -> Optional[str]:
     # Return option number (1-based, but adjust for back)
     choice_map = {
         "📋 List all test files": "1",
-        "🚀 Backend smoke (iopaint/tests/test_model.py)": "2",
-        "🧪 Backend full (pytest -v)": "3",
-        "🔍 Backend single test name (-k)": "4",
-        "⚙️  Backend custom pytest args": "5",
-        "🧹 Test lint (ruff check/format)": "6",
-        "🏗️  Frontend build (npm run build)": "7",
-        "🔎 Frontend lint (npm run lint)": "8",
-        "🔧 Frontend custom npm script": "9",
-        "❓ Help (detailed help)": "10",
+        "📋 List frontend test files": "2",
+        "🚀 Backend smoke (iopaint/tests/test_model.py)": "3",
+        "🧪 Backend full (pytest -v)": "4",
+        "🔍 Backend single test name (-k)": "5",
+        "⚙️  Backend custom pytest args": "6",
+        "🧹 Test lint (ruff check/format)": "7",
+        "🏗️  Frontend build (npm run build)": "8",
+        "🔎 Frontend lint (npm run lint)": "9",
+        "🔧 Frontend custom npm script": "10",
+        "❓ Help (detailed help)": "11",
     }
     
     return choice_map.get(choice, "invalid")
@@ -393,6 +416,8 @@ def main():
             result = test_main_menu()
         elif menu_type == "test-files":
             result = test_file_menu()
+        elif menu_type == "test-files-frontend":
+            result = frontend_test_file_menu()
         else:
             result = "invalid"
 
