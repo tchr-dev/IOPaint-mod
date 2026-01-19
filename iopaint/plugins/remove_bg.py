@@ -128,13 +128,8 @@ class RemoveBG(BasePlugin):
         return output
 
     def check_dep(self):
-        try:
-            import rembg
-        except ImportError as e:
-            import traceback
-
-            error_msg = traceback.format_exc()
-            return f"Install rembg failed, Error details:\n{error_msg}"
+        # Plugins disabled - TBD
+        pass
 
     def device_warning(self):
         if self.device == Device.cuda and self.model_name not in [

@@ -57,22 +57,9 @@ export interface ModelInfo {
   is_single_file_diffusers: boolean
 }
 
-export enum PluginName {
-  RemoveBG = "RemoveBG",
-  AnimeSeg = "AnimeSeg",
-  RealESRGAN = "RealESRGAN",
-  GFPGAN = "GFPGAN",
-  RestoreFormer = "RestoreFormer",
-  InteractiveSeg = "InteractiveSeg",
-}
-
 export type OpenAIToolMode = "local" | "prompt" | "service"
 
 export type OpenAIProvider = "server" | "proxyapi" | "openrouter"
-
-export interface PluginParams {
-  upscale: number
-}
 
 export enum SortBy {
   NAME = "name",

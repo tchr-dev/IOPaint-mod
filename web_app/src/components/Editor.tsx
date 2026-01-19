@@ -7,13 +7,12 @@ import {
   TransformWrapper,
 } from "react-zoom-pan-pinch"
 import { useKeyPressEvent } from "react-use"
-import { downloadToOutput, runPlugin } from "@/lib/api"
+import { downloadToOutput } from "@/lib/api"
 import { IconButton } from "@/components/ui/button"
 import {
   askWritePermission,
   cn,
   copyCanvasImage,
-  createStoredImage,
   downloadImage,
   drawLines,
   generateMask,
@@ -22,12 +21,10 @@ import {
   mouseXY,
   resolveStoredImage,
   resolveStoredImages,
-  srcToFile,
 } from "@/lib/utils"
-import { Eraser, Eye, Redo, Undo, Expand, Download } from "lucide-react"
+import { Download, Redo, Undo } from "lucide-react"
 import { useImage } from "@/hooks/useImage"
 import { Slider } from "./ui/slider"
-import { PluginName } from "@/lib/types"
 import { useStore } from "@/lib/states"
 import Cropper from "./Cropper"
 import { InteractiveSegPoints } from "./InteractiveSeg"
@@ -69,7 +66,6 @@ export default function Editor(props: EditorProps) {
     undoDisabled,
     redoDisabled,
     isProcessing,
-    updateAppState,
     runMannually,
     runInpainting,
     isCropperExtenderResizing,
@@ -94,7 +90,6 @@ export default function Editor(props: EditorProps) {
     state.undoDisabled(),
     state.redoDisabled(),
     state.getIsProcessing(),
-    state.updateAppState,
     state.runMannually(),
     state.runInpainting,
     state.isCropperExtenderResizing,
@@ -126,7 +121,7 @@ export default function Editor(props: EditorProps) {
     useState<HTMLImageElement | null>(null)
   const [isPanning, setIsPanning] = useState<boolean>(false)
 
-  const [scale, setScale] = useState<number>(1)
+  const [setScale] = useState<((scale: number) => void)>(() => {})
   const [panned, setPanned] = useState<boolean>(false)
   const [minScale, setMinScale] = useState<number>(1.0)
   const windowCenterX = windowSize.width / 2
@@ -275,15 +270,6 @@ export default function Editor(props: EditorProps) {
     imageHeight,
     imageWidth,
   ])
-
-  const getCurrentRender = useCallback(async () => {
-    let targetFile = file
-    if (renders.length > 0) {
-      const lastRender = renders[renders.length - 1]
-      targetFile = await srcToFile(lastRender.src, file.name, file.type)
-    }
-    return targetFile
-  }, [file, renders])
 
   const hadRunInpainting = () => {
     return renders.length !== 0
@@ -447,33 +433,6 @@ export default function Editor(props: EditorProps) {
     handleCanvasMouseMove(mouseXY(ev))
   }
 
-  const runInteractiveSeg = async (newClicks: number[][]) => {
-    updateAppState({ isPluginRunning: true })
-    const targetFile = await getCurrentRender()
-    try {
-      const res = await runPlugin(
-        true,
-        PluginName.InteractiveSeg,
-        targetFile,
-        undefined,
-        newClicks
-      )
-      const { blob } = res
-      const img = new Image()
-      img.onload = () => {
-        const storedMask = createStoredImage(img)
-        updateInteractiveSegState({ tmpInteractiveSegMask: storedMask })
-      }
-      img.src = blob
-    } catch (e: any) {
-      toast({
-        variant: "destructive",
-        description: e.message ? e.message : e.toString(),
-      })
-    }
-    updateAppState({ isPluginRunning: false })
-  }
-
   const onPointerUp = (ev: SyntheticEvent) => {
     if (isMidClick(ev)) {
       setIsPanning(false)
@@ -509,17 +468,10 @@ export default function Editor(props: EditorProps) {
     }
   }
 
-  const onCanvasMouseUp = (ev: SyntheticEvent) => {
+  const onCanvasMouseUp = () => {
     if (interactiveSegState.isInteractiveSeg) {
-      const xy = mouseXY(ev)
-      const newClicks: number[][] = [...interactiveSegState.clicks]
-      if (isRightClick(ev)) {
-        newClicks.push([xy.x, xy.y, 0, newClicks.length])
-      } else {
-        newClicks.push([xy.x, xy.y, 1, newClicks.length])
-      }
-      runInteractiveSeg(newClicks)
-      updateInteractiveSegState({ clicks: newClicks })
+      // Interactive segmentation is disabled - plugins TBD
+      updateInteractiveSegState({ isInteractiveSeg: false, clicks: [] })
     }
   }
 
@@ -1023,13 +975,6 @@ export default function Editor(props: EditorProps) {
         />
         <div className="flex gap-2">
           <IconButton
-            tooltip="Reset zoom & pan"
-            disabled={scale === minScale && panned === false}
-            onClick={resetZoom}
-          >
-            <Expand />
-          </IconButton>
-          <IconButton
             tooltip="Undo"
             onClick={handleUndo}
             disabled={undoDisabled}
@@ -1044,54 +989,12 @@ export default function Editor(props: EditorProps) {
             <Redo />
           </IconButton>
           <IconButton
-            tooltip="Show original image"
-            onPointerDown={(ev) => {
-              ev.preventDefault()
-              setShowOriginal(() => {
-                window.setTimeout(() => {
-                  setSliderPos(100)
-                }, 10)
-                return true
-              })
-            }}
-            onPointerUp={() => {
-              window.setTimeout(() => {
-                // 防止快速点击 show original image 按钮时图片消失
-                setSliderPos(0)
-              }, 10)
-
-              window.setTimeout(() => {
-                setShowOriginal(false)
-              }, COMPARE_SLIDER_DURATION_MS)
-            }}
-            disabled={renders.length === 0}
-          >
-            <Eye />
-          </IconButton>
-          <IconButton
             tooltip="Save Image"
             disabled={!renders.length}
             onClick={download}
           >
             <Download />
           </IconButton>
-
-          {settings.enableManualInpainting &&
-          settings.model.model_type === "inpaint" ? (
-            <IconButton
-              tooltip="Run Inpainting"
-              disabled={
-                isProcessing || (!hadDrawSomething() && extraMasks.length === 0)
-              }
-              onClick={() => {
-                runInpainting()
-              }}
-            >
-              <Eraser />
-            </IconButton>
-          ) : (
-            <></>
-          )}
         </div>
       </div>
     </div>

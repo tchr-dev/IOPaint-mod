@@ -28,48 +28,5 @@ def build_plugins(
     restoreformer_device: Device,
     no_half: bool,
 ) -> Dict:
-    plugins = {}
-    if enable_interactive_seg:
-        logger.info(f"Initialize {InteractiveSeg.name} plugin")
-        plugins[InteractiveSeg.name] = InteractiveSeg(
-            interactive_seg_model, interactive_seg_device
-        )
-
-    if enable_remove_bg:
-        logger.info(f"Initialize {RemoveBG.name} plugin")
-        plugins[RemoveBG.name] = RemoveBG(remove_bg_model, remove_bg_device)
-
-    if enable_anime_seg:
-        logger.info(f"Initialize {AnimeSeg.name} plugin")
-        plugins[AnimeSeg.name] = AnimeSeg()
-
-    if enable_realesrgan:
-        logger.info(
-            f"Initialize {RealESRGANUpscaler.name} plugin: {realesrgan_model}, {realesrgan_device}"
-        )
-        plugins[RealESRGANUpscaler.name] = RealESRGANUpscaler(
-            realesrgan_model,
-            realesrgan_device,
-            no_half=no_half,
-        )
-
-    if enable_gfpgan:
-        logger.info(f"Initialize {GFPGANPlugin.name} plugin")
-        if enable_realesrgan:
-            logger.info("Use realesrgan as GFPGAN background upscaler")
-        else:
-            logger.info(
-                f"GFPGAN no background upscaler, use --enable-realesrgan to enable it"
-            )
-        plugins[GFPGANPlugin.name] = GFPGANPlugin(
-            gfpgan_device,
-            upscaler=plugins.get(RealESRGANUpscaler.name, None),
-        )
-
-    if enable_restoreformer:
-        logger.info(f"Initialize {RestoreFormerPlugin.name} plugin")
-        plugins[RestoreFormerPlugin.name] = RestoreFormerPlugin(
-            restoreformer_device,
-            upscaler=plugins.get(RealESRGANUpscaler.name, None),
-        )
-    return plugins
+    # Plugins disabled - TBD
+    return {}

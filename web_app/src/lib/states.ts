@@ -11,7 +11,6 @@ import {
   Line,
   LineGroup,
   ModelInfo,
-  PluginParams,
   Point,
   PowerPaintTask,
   ServerConfig,
@@ -55,7 +54,7 @@ import {
   resolveStoredImages,
   srcToFile,
 } from "./utils"
-import inpaint, { getGenInfo, postAdjustMask, runPlugin, inpaintController } from "./api"
+import inpaint, { getGenInfo, postAdjustMask, inpaintController } from "./api"
 import {
   fetchOpenAICapabilities,
   refinePrompt as apiRefinePrompt,
@@ -63,8 +62,6 @@ import {
   getOpenAIJob,
   cancelOpenAIJob,
   fetchStoredImageAsDataUrl,
-  upscaleImage,
-  removeBackground,
   estimateGenerationCost,
   getOpenAIBudgetStatus,
   getOpenAIBudgetLimits,
@@ -607,7 +604,6 @@ type AppState = {
   imageWidth: number
   isInpainting: boolean
   rendersCountBeforeInpaint: number
-  isPluginRunning: boolean
   isAdjustingMask: boolean
   windowSize: Size
   editorState: EditorState
@@ -679,11 +675,6 @@ type AppAction = {
   cancelInpainting: () => void
   showPrevMask: () => Promise<void>
   hidePrevMask: () => void
-  runRenderablePlugin: (
-    genMask: boolean,
-    pluginName: string,
-    params?: PluginParams
-  ) => Promise<void>
 
   // EditorState
   getCurrentTargetFile: () => Promise<File>
@@ -710,7 +701,6 @@ const defaultValues: AppState = {
   imageWidth: 0,
   isInpainting: false,
   rendersCountBeforeInpaint: 0,
-  isPluginRunning: false,
   isAdjustingMask: false,
   disableShortCuts: false,
 
@@ -1078,102 +1068,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
         })
       },
 
-      runRenderablePlugin: async (
-        genMask: boolean,
-        pluginName: string,
-        params: PluginParams = { upscale: 1 }
-      ) => {
-        const { renders, lineGroups } = get().editorState
-        const toolMode = get().settings.openAIToolMode
-        const baseUrl = resolveOpenAIBaseUrl(get().settings.openAIProvider)
-        const isSpecialTool =
-          pluginName === "RemoveBG" || pluginName === "RealESRGAN"
-        set((state) => {
-          state.isPluginRunning = true
-        })
-
-        try {
-          const start = new Date()
-          const targetFile = await get().getCurrentTargetFile()
-          let blobUrl: string | null = null
-
-          if (isSpecialTool && toolMode !== "local") {
-            if (genMask) {
-              throw new Error("Mask generation is only supported in local mode.")
-            }
-            if (toolMode === "service") {
-              throw new Error("Specialized services are not configured yet.")
-            }
-
-            if (pluginName === "RealESRGAN") {
-              const blob = await upscaleImage(
-                targetFile,
-                {
-                  scale: params.upscale,
-                  mode: "prompt",
-                },
-                baseUrl
-              )
-              blobUrl = URL.createObjectURL(blob)
-            } else if (pluginName === "RemoveBG") {
-              const blob = await removeBackground(
-                targetFile,
-                {
-                  mode: "prompt",
-                },
-                baseUrl
-              )
-              blobUrl = URL.createObjectURL(blob)
-            }
-          } else {
-            const res = await runPlugin(
-              genMask,
-              pluginName,
-              targetFile,
-              params.upscale
-            )
-            blobUrl = res.blob
-          }
-          if (!blobUrl) {
-            throw new Error("Tool did not return an image.")
-          }
-
-          if (!genMask) {
-            const newRender = new Image()
-            await loadImage(newRender, blobUrl)
-            const storedRender = createStoredImage(newRender)
-            get().setImageSize(newRender.width, newRender.height)
-            const newRenders = [...renders, storedRender]
-            const newLineGroups = [...lineGroups, []]
-            get().updateEditorState({
-              renders: newRenders,
-              lineGroups: newLineGroups,
-            })
-          } else {
-            const newMask = new Image()
-            await loadImage(newMask, blobUrl)
-            const storedMask = createStoredImage(newMask)
-            set((state) => {
-              state.editorState.extraMasks.push(storedMask)
-            })
-          }
-          const end = new Date()
-          const time = end.getTime() - start.getTime()
-          toast({
-            description: `Run ${pluginName} successfully in ${time / 1000}s`,
-          })
-        } catch (e: any) {
-          toast({
-            variant: "destructive",
-            description: e.message ? e.message : e.toString(),
-          })
-        }
-        set((state) => {
-          state.isPluginRunning = false
-        })
-      },
-
-      // Edirot State //
+      // EditorState //
       updateEditorState: (newState: Partial<EditorState>) => {
         set((state) => {
           state.editorState = castDraft({ ...state.editorState, ...newState })
@@ -1214,9 +1109,7 @@ export const useStore = createWithEqualityFn<AppState & AppAction>()(
       },
 
       getIsProcessing: (): boolean => {
-        return (
-          get().isInpainting || get().isPluginRunning || get().isAdjustingMask
-        )
+        return get().isInpainting || get().isAdjustingMask
       },
 
       isSD: (): boolean => {

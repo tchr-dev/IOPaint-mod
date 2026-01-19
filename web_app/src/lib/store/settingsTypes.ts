@@ -1,8 +1,10 @@
 import type { ModelInfo, OpenAIProvider, OpenAIToolMode } from "../types"
 import { ExtenderDirection, LDMSampler, CV2Flag, PowerPaintTask } from "../types"
+import { QualityPreset } from "../presets"
 
 export type Settings = {
   model: ModelInfo
+  qualityPreset: QualityPreset
   enableDownloadMask: boolean
   enableManualInpainting: boolean
   enableUploadMask: boolean
@@ -57,6 +59,7 @@ export const settingsDefaultValues: Settings = {
     is_single_file_diffusers: false,
     need_prompt: false,
   },
+  qualityPreset: QualityPreset.FAST,
   showCropper: false,
   showExtender: false,
   extenderDirection: ExtenderDirection.xy,

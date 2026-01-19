@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect } from "react"
 import { currentModel } from "@/lib/api"
 import { useStore } from "@/lib/states"
 import ImageSize from "./ImageSize"
-import Plugins from "./Plugins"
 import { InteractiveSeg } from "./InteractiveSeg"
 import SidePanel from "./SidePanel"
 import DiffusionProgress from "./DiffusionProgress"
@@ -68,7 +67,6 @@ const [file, updateSettings, setFile] = useStore((state) => [
       </div>
 
       <div className="flex gap-3 absolute top-[68px] left-[24px] items-center z-10">
-        <Plugins />
         <ImageSize />
       </div>
       <InteractiveSeg />

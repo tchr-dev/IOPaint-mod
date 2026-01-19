@@ -7,15 +7,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "../ui/button"
 import useHotKey from "@/hooks/useHotkey"
 import { RowContainer } from "./LabelTitle"
-import { CV2, LDM, MODEL_TYPE_INPAINT } from "@/lib/const"
-import LDMOptions from "./LDMOptions"
-import DiffusionOptions from "./DiffusionOptions"
-import CV2Options from "./CV2Options"
+import SimplifiedOptions from "./SimplifiedOptions"
 import { OpenAIGeneratePanel, OpenAIEditPanel } from "../OpenAI"
 
 const SidePanel = () => {
-  const [settings, windowSize, isOpenAIMode, isOpenAIEditMode] = useStore((state) => [
-    state.settings,
+  const [windowSize, isOpenAIMode, isOpenAIEditMode] = useStore((state) => [
     state.windowSize,
     state.openAIState.isOpenAIMode,
     state.openAIState.isOpenAIEditMode,
@@ -27,44 +23,21 @@ const SidePanel = () => {
     toggleOpen()
   })
 
-  // Show panel for OpenAI mode or for supported local models
-  const shouldShowPanel =
-    isOpenAIMode ||
-    settings.model.name === LDM ||
-    settings.model.name === CV2 ||
-    settings.model.model_type !== MODEL_TYPE_INPAINT
-
-  if (!shouldShowPanel) {
-    return null
-  }
-
   const renderSidePanelOptions = () => {
     // OpenAI mode takes precedence
     if (isOpenAIMode) {
       // Show edit panel or generate panel based on mode
       return isOpenAIEditMode ? <OpenAIEditPanel /> : <OpenAIGeneratePanel />
     }
-    // Local model options
-    if (settings.model.name === LDM) {
-      return <LDMOptions />
-    }
-    if (settings.model.name === CV2) {
-      return <CV2Options />
-    }
-    return <DiffusionOptions />
+    // Simplified local mode
+    return <SimplifiedOptions />
   }
 
   const getPanelTitle = () => {
     if (isOpenAIMode) {
       return isOpenAIEditMode ? "Cloud Edit" : "Cloud Generation"
     }
-    const modelName = settings.model.name
-    // Show friendly name for openai-compat model
-    if (modelName === "openai-compat") {
-      return "Model Settings"
-    }
-    // For other models, show last segment of path
-    return modelName.split("/")[modelName.split("/").length - 1]
+    return "Quality Presets"
   }
 
   return (

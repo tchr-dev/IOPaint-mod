@@ -17,35 +17,20 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Switch } from "./ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useQuery } from "@tanstack/react-query"
-import { getServerConfig, switchModel, switchPluginModel } from "@/lib/api"
-import {
-  GenerationPreset,
-  ModelInfo,
-  OpenAIImageQuality,
-  OpenAIImageSize,
-  PluginName,
-} from "@/lib/types"
+import { getServerConfig, switchModel } from "@/lib/api"
+import { ModelInfo } from "@/lib/types"
 import { useStore } from "@/lib/states"
-import { ScrollArea } from "./ui/scroll-area"
 import { useToast } from "./ui/use-toast"
 import {
   AlertDialog,
   AlertDialogContent,
   AlertDialogHeader,
 } from "./ui/alert-dialog"
-import {
-  MODEL_TYPE_DIFFUSERS_SD,
-  MODEL_TYPE_DIFFUSERS_SDXL,
-  MODEL_TYPE_DIFFUSERS_SDXL_INPAINT,
-  MODEL_TYPE_DIFFUSERS_SD_INPAINT,
-  MODEL_TYPE_INPAINT,
-  MODEL_TYPE_OTHER,
-} from "@/lib/const"
 import useHotKey from "@/hooks/useHotkey"
+import { detectPresetFromModel, PRESET_CONFIGS } from "@/lib/presets"
 import {
   Select,
   SelectContent,
@@ -68,21 +53,16 @@ const formSchema = z.object({
   openAIDailyCapUsd: z.coerce.number().min(0),
   openAIMonthlyCapUsd: z.coerce.number().min(0),
   openAISessionCapUsd: z.coerce.number().min(0),
-  removeBGModel: z.string(),
-  realesrganModel: z.string(),
-  interactiveSegModel: z.string(),
 })
 
 const TAB_GENERAL = "General"
-const TAB_MODEL = "Model"
-const TAB_PLUGINS = "Plugins"
 // const TAB_FILE_MANAGER = "File Manager"
 
-const TAB_NAMES = [TAB_MODEL, TAB_GENERAL, TAB_PLUGINS]
+const TAB_NAMES = [TAB_GENERAL]
 
 export function SettingsDialog() {
   const [open, toggleOpen] = useToggle(false)
-  const [tab, setTab] = useState(TAB_MODEL)
+  const [tab, setTab] = useState(TAB_GENERAL)
   const [
     updateAppState,
     settings,
@@ -92,14 +72,6 @@ export function SettingsDialog() {
     setServerConfig,
     fetchOpenAICapabilities,
     isOpenAIMode,
-    capabilities,
-    selectedGenerateModel,
-    selectedEditModel,
-    setSelectedGenerateModel,
-    setSelectedEditModel,
-    customPresetConfig,
-    updateCustomPresetConfig,
-    setSelectedPreset,
     budgetLimits,
     refreshBudgetLimits,
     updateBudgetLimits,
@@ -112,14 +84,6 @@ export function SettingsDialog() {
     state.setServerConfig,
     state.fetchOpenAICapabilities,
     state.openAIState.isOpenAIMode,
-    state.openAIState.capabilities,
-    state.openAIState.selectedGenerateModel,
-    state.openAIState.selectedEditModel,
-    state.setSelectedGenerateModel,
-    state.setSelectedEditModel,
-    state.openAIState.customPresetConfig,
-    state.updateCustomPresetConfig,
-    state.setSelectedPreset,
     state.openAIState.budgetLimits,
     state.refreshBudgetLimits,
     state.updateBudgetLimits,
@@ -156,18 +120,12 @@ export function SettingsDialog() {
       openAISessionCapUsd: budgetLimits?.sessionCapUsd ?? 0,
       inputDirectory: fileManagerState.inputDirectory,
       outputDirectory: fileManagerState.outputDirectory,
-      removeBGModel: serverConfig?.removeBGModel,
-      realesrganModel: serverConfig?.realesrganModel,
-      interactiveSegModel: serverConfig?.interactiveSegModel,
     },
   })
 
   useEffect(() => {
     if (serverConfig) {
       setServerConfig(serverConfig)
-      form.setValue("removeBGModel", serverConfig.removeBGModel)
-      form.setValue("realesrganModel", serverConfig.realesrganModel)
-      form.setValue("interactiveSegModel", serverConfig.interactiveSegModel)
     }
   }, [form, serverConfig, setServerConfig])
 
@@ -224,112 +182,28 @@ export function SettingsDialog() {
     // })
 
     const shouldSwitchModel = model.name !== settings.model.name
-    const shouldSwitchRemoveBGModel =
-      serverConfig?.removeBGModel !== values.removeBGModel && removeBGEnabled
-    const shouldSwitchRealesrganModel =
-      serverConfig?.realesrganModel !== values.realesrganModel &&
-      realesrganEnabled
-    const shouldSwitchInteractiveModel =
-      serverConfig?.interactiveSegModel !== values.interactiveSegModel &&
-      interactiveSegEnabled
 
-    const showModelSwitching =
-      shouldSwitchModel ||
-      shouldSwitchRemoveBGModel ||
-      shouldSwitchRealesrganModel ||
-      shouldSwitchInteractiveModel
-
-    if (showModelSwitching) {
+    if (shouldSwitchModel) {
       const newModelSwitchingTexts: string[] = []
-      if (shouldSwitchModel) {
-        newModelSwitchingTexts.push(
-          `Switching model from ${settings.model.name} to ${model.name}`
-        )
-      }
-      if (shouldSwitchRemoveBGModel) {
-        newModelSwitchingTexts.push(
-          `Switching RemoveBG model from ${serverConfig?.removeBGModel} to ${values.removeBGModel}`
-        )
-      }
-      if (shouldSwitchRealesrganModel) {
-        newModelSwitchingTexts.push(
-          `Switching RealESRGAN model from ${serverConfig?.realesrganModel} to ${values.realesrganModel}`
-        )
-      }
-      if (shouldSwitchInteractiveModel) {
-        newModelSwitchingTexts.push(
-          `Switching ${PluginName.InteractiveSeg} model from ${serverConfig?.interactiveSegModel} to ${values.interactiveSegModel}`
-        )
-      }
+      newModelSwitchingTexts.push(
+        `Switching model from ${settings.model.name} to ${model.name}`
+      )
       setModelSwitchingTexts(newModelSwitchingTexts)
 
       updateAppState({ disableShortCuts: true })
 
-      if (shouldSwitchModel) {
-        try {
-          const newModel = await switchModel(model.name)
-          toast({
-            title: `Switch to ${newModel.name} success`,
-          })
-          setAppModel(model)
-        } catch (error: any) {
-          toast({
-            variant: "destructive",
-            title: `Switch to ${model.name} failed: ${error}`,
-          })
-          setModel(settings.model)
-        }
-      }
-
-      if (shouldSwitchRemoveBGModel) {
-        try {
-          const res = await switchPluginModel(
-            PluginName.RemoveBG,
-            values.removeBGModel
-          )
-          if (res.status !== 200) {
-            throw new Error(res.statusText)
-          }
-        } catch (error: any) {
-          toast({
-            variant: "destructive",
-            title: `Switch RemoveBG model to ${values.removeBGModel} failed: ${error}`,
-          })
-        }
-      }
-
-      if (shouldSwitchRealesrganModel) {
-        try {
-          const res = await switchPluginModel(
-            PluginName.RealESRGAN,
-            values.realesrganModel
-          )
-          if (res.status !== 200) {
-            throw new Error(res.statusText)
-          }
-        } catch (error: any) {
-          toast({
-            variant: "destructive",
-            title: `Switch RealESRGAN model to ${values.realesrganModel} failed: ${error}`,
-          })
-        }
-      }
-
-      if (shouldSwitchInteractiveModel) {
-        try {
-          const res = await switchPluginModel(
-            PluginName.InteractiveSeg,
-            values.interactiveSegModel
-          )
-          if (res.status !== 200) {
-            throw new Error(res.statusText)
-          }
-        } catch (error: any) {
-          toast({
-            variant: "destructive",
-            title: `Switch ${PluginName.InteractiveSeg} model to ${values.interactiveSegModel} failed: ${error}`,
-          })
-        }
+      try {
+        const newModel = await switchModel(model.name)
+        toast({
+          title: `Switch to ${newModel.name} success`,
+        })
+        setAppModel(model)
+      } catch (error: any) {
+        toast({
+          variant: "destructive",
+          title: `Switch to ${model.name} failed: ${error}`,
+        })
+        setModel(settings.model)
       }
 
       setModelSwitchingTexts([])
@@ -355,16 +229,6 @@ export function SettingsDialog() {
   }
 
   const modelInfos = serverConfig.modelInfos
-  const plugins = serverConfig.plugins
-  const removeBGEnabled = plugins.some(
-    (plugin) => plugin.name === PluginName.RemoveBG
-  )
-  const realesrganEnabled = plugins.some(
-    (plugin) => plugin.name === PluginName.RealESRGAN
-  )
-  const interactiveSegEnabled = plugins.some(
-    (plugin) => plugin.name === PluginName.InteractiveSeg
-  )
 
   function onOpenChange(value: boolean) {
     toggleOpen()
@@ -377,276 +241,49 @@ export function SettingsDialog() {
     setModel(info)
   }
 
-  function renderModelList(model_types: string[]) {
-    if (!modelInfos) {
-      return <div>Please download model first</div>
-    }
-    return modelInfos
-      .filter((info) => model_types.includes(info.model_type))
-      .map((info: ModelInfo) => {
-        return (
-          <div
-            key={info.name}
-            onClick={() => onModelSelect(info)}
-            className="px-2"
+  function renderGeneralSettings() {
+    const modelSelection = modelInfos.find((info) => info.name === model.name)
+    const mappedPreset = detectPresetFromModel(model)
+    return (
+      <div className="space-y-4 w-[510px]">
+        <FormItem className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <FormLabel>Model</FormLabel>
+            <FormDescription>Choose the local model.</FormDescription>
+          </div>
+          <Select
+            onValueChange={(value) => {
+              const selected = modelInfos.find((info) => info.name === value)
+              if (selected) {
+                onModelSelect(selected)
+              }
+            }}
+            value={modelSelection?.name ?? ""}
+            disabled={modelInfos.length <= 1}
           >
-            <div
-              className={cn([
-                info.name === model.name ? "bg-muted" : "hover:bg-muted",
-                "rounded-md px-2 py-2",
-                "cursor-default",
-              ])}
-            >
-              <div className="text-base">{info.name}</div>
-            </div>
-            <Separator className="my-1" />
-          </div>
-        )
-      })
-  }
+            <FormControl>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent align="end">
+              <SelectGroup>
+                {modelInfos.map((modelOption) => (
+                  <SelectItem key={modelOption.name} value={modelOption.name}>
+                    {modelOption.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </FormItem>
 
-  function renderOpenAISettings() {
-    if (!capabilities) {
-      return <div className="w-[510px]">Loading OpenAI capabilities...</div>
-    }
-
-    const generateCaps = capabilities.modes.images_generate
-    const editCaps = capabilities.modes.images_edit
-    const generateModels = generateCaps?.models ?? []
-    const editModels = editCaps?.models ?? []
-
-    const resolveModel = (models: typeof generateModels, id: string) =>
-      models.find((model) => model.apiId === id || model.id === id)
-
-    const renderModeSettings = (
-      label: string,
-      models: typeof generateModels,
-      selectedModel: string,
-      onModelChange: (value: string) => void
-    ) => {
-      if (models.length === 0) {
-        return (
-          <div className="text-sm text-muted-foreground">
-            No models available for {label.toLowerCase()}.
-          </div>
-        )
-      }
-      const model = resolveModel(models, selectedModel) ?? models[0]
-      const sizes = model?.sizes ?? []
-      const qualities = model?.qualities ?? []
-      const selectedSize = sizes.includes(customPresetConfig.size)
-        ? customPresetConfig.size
-        : sizes[0] ?? customPresetConfig.size
-      const selectedQuality = qualities.includes(customPresetConfig.quality)
-        ? customPresetConfig.quality
-        : qualities[0] ?? customPresetConfig.quality
-
-      return (
-        <div className="space-y-4">
-          <div className="text-sm font-medium text-foreground">{label}</div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <FormLabel>Model</FormLabel>
-              <FormDescription>Choose the OpenAI model.</FormDescription>
-            </div>
-            <Select
-              onValueChange={onModelChange}
-              value={selectedModel}
-              disabled={models.length <= 1}
-            >
-              <FormControl>
-                <SelectTrigger className="w-[220px]">
-                  <SelectValue placeholder="Select model" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent align="end">
-                <SelectGroup>
-                  {models.map((modelOption) => (
-                    <SelectItem key={modelOption.apiId} value={modelOption.apiId}>
-                      {modelOption.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <FormLabel>Size</FormLabel>
-              <FormDescription>Output image size.</FormDescription>
-            </div>
-            <Select
-              onValueChange={(value) => {
-                updateCustomPresetConfig({ size: value as OpenAIImageSize })
-                setSelectedPreset(GenerationPreset.CUSTOM)
-              }}
-              value={selectedSize}
-              disabled={sizes.length <= 1}
-            >
-              <FormControl>
-                <SelectTrigger className="w-[220px]">
-                  <SelectValue placeholder="Select size" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent align="end">
-                <SelectGroup>
-                  {sizes.map((size) => (
-                    <SelectItem key={size} value={size}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <FormLabel>Quality</FormLabel>
-              <FormDescription>Output quality preset.</FormDescription>
-            </div>
-            <Select
-              onValueChange={(value) => {
-                updateCustomPresetConfig({ quality: value as OpenAIImageQuality })
-                setSelectedPreset(GenerationPreset.CUSTOM)
-              }}
-              value={selectedQuality}
-              disabled={qualities.length <= 1}
-            >
-              <FormControl>
-                <SelectTrigger className="w-[220px]">
-                  <SelectValue placeholder="Select quality" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent align="end">
-                <SelectGroup>
-                  {qualities.map((quality) => (
-                    <SelectItem key={quality} value={quality}>
-                      {quality === "hd" ? "HD" : "Standard"}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className="flex flex-col gap-4 w-[510px]">
-        <Tabs defaultValue="images_generate">
-          <TabsList>
-            <TabsTrigger value="images_generate">Image Generation</TabsTrigger>
-            <TabsTrigger value="images_edit" disabled={editModels.length === 0}>
-              Image Edit (Inpaint)
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="images_generate">
-            {renderModeSettings(
-              "Generation",
-              generateModels,
-              selectedGenerateModel,
-              setSelectedGenerateModel
-            )}
-          </TabsContent>
-          <TabsContent value="images_edit">
-            {editModels.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                No edit-capable models available.
-              </div>
-            ) : (
-              renderModeSettings(
-                "Edit",
-                editModels,
-                selectedEditModel,
-                setSelectedEditModel
-              )
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
-    )
-  }
-
-  function renderModelSettings() {
-    if (isOpenAIMode) {
-      return renderOpenAISettings()
-    }
-    let defaultTab = MODEL_TYPE_INPAINT
-    for (const info of modelInfos) {
-      if (model.name === info.name) {
-        defaultTab = info.model_type
-        if (defaultTab === MODEL_TYPE_DIFFUSERS_SDXL) {
-          defaultTab = MODEL_TYPE_DIFFUSERS_SD
-        }
-        if (defaultTab === MODEL_TYPE_DIFFUSERS_SDXL_INPAINT) {
-          defaultTab = MODEL_TYPE_DIFFUSERS_SD_INPAINT
-        }
-        break
-      }
-    }
-
-    return (
-      <div className="flex flex-col gap-4 w-[510px]">
-        <div className="flex flex-col gap-4 rounded-md">
-          <div className="font-medium">Current Model</div>
-          <div>{model.name}</div>
+        <div className="text-sm text-muted-foreground">
+          Mapped preset: {PRESET_CONFIGS[mappedPreset].displayName}
         </div>
 
         <Separator />
 
-        <div className="space-y-4  rounded-md">
-          <div className="flex gap-1 items-center justify-start">
-            <div className="font-medium">Available models</div>
-            {/* <IconButton tooltip="How to download new model">
-              <Info size={20} strokeWidth={2} className="opacity-50" />
-            </IconButton> */}
-          </div>
-          <Tabs defaultValue={defaultTab}>
-            <TabsList>
-              <TabsTrigger value={MODEL_TYPE_INPAINT}>Inpaint</TabsTrigger>
-              <TabsTrigger value={MODEL_TYPE_DIFFUSERS_SD}>
-                Stable Diffusion
-              </TabsTrigger>
-              <TabsTrigger value={MODEL_TYPE_DIFFUSERS_SD_INPAINT}>
-                Stable Diffusion Inpaint
-              </TabsTrigger>
-              <TabsTrigger value={MODEL_TYPE_OTHER}>
-                Other Diffusion
-              </TabsTrigger>
-            </TabsList>
-            <ScrollArea className="h-[240px] w-full mt-2 outline-none border rounded-lg">
-              <TabsContent value={MODEL_TYPE_INPAINT}>
-                {renderModelList([MODEL_TYPE_INPAINT])}
-              </TabsContent>
-              <TabsContent value={MODEL_TYPE_DIFFUSERS_SD}>
-                {renderModelList([
-                  MODEL_TYPE_DIFFUSERS_SD,
-                  MODEL_TYPE_DIFFUSERS_SDXL,
-                ])}
-              </TabsContent>
-              <TabsContent value={MODEL_TYPE_DIFFUSERS_SD_INPAINT}>
-                {renderModelList([
-                  MODEL_TYPE_DIFFUSERS_SD_INPAINT,
-                  MODEL_TYPE_DIFFUSERS_SDXL_INPAINT,
-                ])}
-              </TabsContent>
-              <TabsContent value={MODEL_TYPE_OTHER}>
-                {renderModelList([MODEL_TYPE_OTHER])}
-              </TabsContent>
-            </ScrollArea>
-          </Tabs>
-        </div>
-      </div>
-    )
-  }
-
-  function renderGeneralSettings() {
-    return (
-      <div className="space-y-4 w-[510px]">
         <FormField
           control={form.control}
           name="enableManualInpainting"
@@ -886,116 +523,6 @@ export function SettingsDialog() {
     )
   }
 
-  function renderPluginsSettings() {
-    return (
-      <div className="space-y-4 w-[510px]">
-        <FormField
-          control={form.control}
-          name="removeBGModel"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <FormLabel>Remove Background</FormLabel>
-                <FormDescription>Remove background model</FormDescription>
-              </div>
-              <Select
-                onValueChange={field.onChange}
-                defaultValue={field.value}
-                disabled={!removeBGEnabled}
-              >
-                <FormControl>
-                  <SelectTrigger className="w-auto">
-                    <SelectValue placeholder="Select removebg model" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent align="end">
-                  <SelectGroup>
-                    {serverConfig?.removeBGModels.map((model) => (
-                      <SelectItem key={model} value={model}>
-                        {model}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-
-        <Separator />
-
-        <FormField
-          control={form.control}
-          name="realesrganModel"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <FormLabel>RealESRGAN</FormLabel>
-                <FormDescription>RealESRGAN Model</FormDescription>
-              </div>
-              <Select
-                onValueChange={field.onChange}
-                defaultValue={field.value}
-                disabled={!realesrganEnabled}
-              >
-                <FormControl>
-                  <SelectTrigger className="w-auto">
-                    <SelectValue placeholder="Select RealESRGAN model" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent align="end">
-                  <SelectGroup>
-                    {serverConfig?.realesrganModels.map((model) => (
-                      <SelectItem key={model} value={model}>
-                        {model}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-
-        <Separator />
-
-        <FormField
-          control={form.control}
-          name="interactiveSegModel"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <FormLabel>Interactive Segmentation</FormLabel>
-                <FormDescription>
-                  Interactive Segmentation Model
-                </FormDescription>
-              </div>
-              <Select
-                onValueChange={field.onChange}
-                defaultValue={field.value}
-                disabled={!interactiveSegEnabled}
-              >
-                <FormControl>
-                  <SelectTrigger className="w-auto">
-                    <SelectValue placeholder="Select interactive segmentation model" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent align="end">
-                  <SelectGroup>
-                    {serverConfig?.interactiveSegModels.map((model) => (
-                      <SelectItem key={model} value={model}>
-                        {model}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-      </div>
-    )
-  }
   // function renderFileManagerSettings() {
   //   return (
   //     <div className="flex flex-col justify-between rounded-lg gap-4 w-[400px]">
@@ -1135,9 +662,7 @@ export function SettingsDialog() {
             <Form {...form}>
               <div className="flex w-full justify-center">
                 <form onSubmit={form.handleSubmit(onSubmit)}>
-                  {tab === TAB_MODEL ? renderModelSettings() : <></>}
                   {tab === TAB_GENERAL ? renderGeneralSettings() : <></>}
-                  {tab === TAB_PLUGINS ? renderPluginsSettings() : <></>}
                   {/* {tab === TAB_FILE_MANAGER ? (
                     renderFileManagerSettings()
                   ) : (

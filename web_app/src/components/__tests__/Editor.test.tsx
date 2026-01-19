@@ -12,7 +12,6 @@ const resetEditorState = () => {
     imageWidth: 0,
     isInpainting: false,
     rendersCountBeforeInpaint: 0,
-    isPluginRunning: false,
     isAdjustingMask: false,
     disableShortCuts: false,
     editorState: {
@@ -206,18 +205,13 @@ describe("Editor", () => {
       expect(useStore.getState().getIsProcessing()).toBe(true)
     })
 
-    it("returns true when plugin is running", () => {
-      useStore.setState({ isPluginRunning: true })
-      expect(useStore.getState().getIsProcessing()).toBe(true)
-    })
-
     it("returns true when adjusting mask", () => {
       useStore.setState({ isAdjustingMask: true })
       expect(useStore.getState().getIsProcessing()).toBe(true)
     })
 
     it("returns false when no processing is happening", () => {
-      useStore.setState({ isInpainting: false, isPluginRunning: false, isAdjustingMask: false })
+      useStore.setState({ isInpainting: false, isAdjustingMask: false })
       expect(useStore.getState().getIsProcessing()).toBe(false)
     })
   })
