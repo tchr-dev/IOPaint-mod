@@ -33,6 +33,23 @@ Run:
 USAGE
 }
 
+DEBUG="${DEBUG:-0}"
+
+# Parse debug flag
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -d|--debug)
+            DEBUG=1
+            shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+export DEBUG
+
 cmd="${1:-}"
 shift || true
 
@@ -63,9 +80,9 @@ case "$cmd" in
        # Use temp file for choice output to avoid capturing menu display
        if has_cmd mktemp; then
          temp_file=$(mktemp) || { echo "Failed to create temp file" >&2; exit 1; }
-         if uv run python3 "$SCRIPT_DIR/scripts/unix/cli_menu.py" "$menu_type" "$temp_file"; then
-           choice=$(cat "$temp_file" 2>/dev/null | tr -d '\r')
-           rm -f "$temp_file"
+        if uv run python3 "$SCRIPT_DIR/scripts/unix/cli_menu.py" "$menu_type" "$temp_file"; then
+            choice=$(cat "$temp_file" 2>/dev/null | tr -d '\r')
+            rm -f "$temp_file"
            if [[ -z "$choice" ]]; then
              echo "Interactive CLI not available. Use --noninteractive for command list." >&2
              exit 1
@@ -78,13 +95,22 @@ case "$cmd" in
        else
          echo "Interactive CLI requires 'mktemp'. Use --noninteractive for command list." >&2
          exit 1
-       fi
-       case "$choice" in
+        fi
+        case "$choice" in
          quit) exit 0 ;;
          back) menu_type="main" ;;
          help) usage ;;
          invalid) echo "Invalid selection, please try again." ;;
-         *.py) exec "$SCRIPT_DIR/scripts/unix/test.sh" file "$choice" ;;
+          *.py)
+            # Handle single file selection
+            if [[ -n "$choice" ]]; then
+              if [[ "$DEBUG" == "1" ]]; then
+                echo "DEBUG: Running test file: $choice" >&2
+              fi
+              uv run python main.py test file "iopaint/tests/$choice"
+            fi
+            menu_type="main"
+            ;;
          [a-z]*)
            case "$choice" in
              dev|prod|stop|build|test|jobs|docker|publish)
@@ -104,20 +130,19 @@ case "$cmd" in
                  6) exit 0 ;;
                esac
                ;;
-             test-main)
-               case "$choice" in
-                 1) exec "$SCRIPT_DIR/scripts/unix/test.sh" list ;;
-                 2) exec "$SCRIPT_DIR/scripts/unix/test.sh" smoke ;;
-                 3) exec "$SCRIPT_DIR/scripts/unix/test.sh" full ;;
-                 4) menu_type="test-files" ;;
-                 5) exec "$SCRIPT_DIR/scripts/unix/test.sh" k ;;
-                 6) exec "$SCRIPT_DIR/scripts/unix/test.sh" custom ;;
-                 7) exec "$SCRIPT_DIR/scripts/unix/test.sh" test-lint ;;
-                 8) exec "$SCRIPT_DIR/scripts/unix/test.sh" fe-build ;;
-                 9) exec "$SCRIPT_DIR/scripts/unix/test.sh" fe-lint ;;
-                 10) exec "$SCRIPT_DIR/scripts/unix/test.sh" fe-custom ;;
-                 11) usage ;;
-               esac
+              test-main)
+                case "$choice" in
+                  1) menu_type="test-files" ;;
+                  2) exec uv run python main.py test smoke ;;
+                  3) exec uv run python main.py test full ;;
+                  4) exec uv run python main.py test k ;;
+                  5) exec uv run python main.py test custom ;;
+                  6) exec uv run python main.py test test-lint ;;
+                  7) exec uv run python main.py test fe-build ;;
+                  8) exec uv run python main.py test fe-lint ;;
+                  9) exec uv run python main.py test fe-custom ;;
+                  10) usage ;;
+                esac
                ;;
            esac
            ;;
@@ -125,10 +150,14 @@ case "$cmd" in
        esac
      done
      ;;
-   cli|dev|prod|stop|build|test|jobs|docker|publish)
-     cd_project_root
-     exec "$SCRIPT_DIR/scripts/unix/${cmd}.sh" "$@"
-     ;;
+    cli|dev|prod|stop|build|jobs|docker|publish)
+      cd_project_root
+      exec "$SCRIPT_DIR/scripts/unix/${cmd}.sh" "$@"
+      ;;
+    test)
+      cd_project_root
+      exec uv run python main.py test "$@"
+      ;;
    *)
      die "Unknown command: $cmd. Run --help."
      ;;

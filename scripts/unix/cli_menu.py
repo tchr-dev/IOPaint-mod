@@ -192,6 +192,22 @@ def extract_description(filename: str) -> str:
     base_name = filename.replace('test_', '').replace('.py', '')
     return name_map.get(base_name, base_name.replace('_', ' '))
 
+
+def categorize_test(filename: str) -> str:
+    """Categorize a test file."""
+    if 'api' in filename or 'history_snapshots' in filename:
+        return 'API'
+    elif 'model' in filename or 'sd' in filename or 'adjust_mask' in filename or 'load_img' in filename or 'save' in filename:
+        return 'Models'
+    elif 'openai' in filename:
+        return 'OpenAI'
+    elif 'budget' in filename:
+        return 'Budget'
+    elif 'plugins' in filename:
+        return 'Plugins'
+    else:
+        return 'Other'
+
 def test_main_menu() -> Optional[str]:
     """Display test main menu."""
     if not QUESTIONARY_AVAILABLE:
@@ -201,7 +217,6 @@ def test_main_menu() -> Optional[str]:
         "📋 List all test files",
         "🚀 Backend smoke (iopaint/tests/test_model.py)",
         "🧪 Backend full (pytest -v)",
-        "📄 Backend single test file",
         "🔍 Backend single test name (-k)",
         "⚙️  Backend custom pytest args",
         "🧹 Test lint (ruff check/format)",
@@ -226,50 +241,125 @@ def test_main_menu() -> Optional[str]:
         "📋 List all test files": "1",
         "🚀 Backend smoke (iopaint/tests/test_model.py)": "2",
         "🧪 Backend full (pytest -v)": "3",
-        "📄 Backend single test file": "4",
-        "🔍 Backend single test name (-k)": "5",
-        "⚙️  Backend custom pytest args": "6",
-        "🧹 Test lint (ruff check/format)": "7",
-        "🏗️  Frontend build (npm run build)": "8",
-        "🔎 Frontend lint (npm run lint)": "9",
-        "🔧 Frontend custom npm script": "10",
-        "❓ Help (detailed help)": "11",
+        "🔍 Backend single test name (-k)": "4",
+        "⚙️  Backend custom pytest args": "5",
+        "🧹 Test lint (ruff check/format)": "6",
+        "🏗️  Frontend build (npm run build)": "7",
+        "🔎 Frontend lint (npm run lint)": "8",
+        "🔧 Frontend custom npm script": "9",
+        "❓ Help (detailed help)": "10",
     }
     
     return choice_map.get(choice, "invalid")
 
 def test_file_menu() -> Optional[str]:
-    """Interactive test file selection."""
+    """Interactive test file selection with categories."""
+    import os
+
+    DEBUG = os.environ.get('DEBUG', '0') == '1'
+
     if not QUESTIONARY_AVAILABLE:
         return None
 
     test_files = get_test_files()
+
+    if DEBUG:
+        print(f"DEBUG: test_file_menu called, test_files count = {len(test_files)}", flush=True)
+
     if not test_files:
         console.print("[red]No test files found![/red]")
         return "back"
 
-    # Create choices with numbers and descriptions
-    choices = []
-    for i, (filename, description) in enumerate(test_files, 1):
-        choices.append(f"{i:2d}) {filename:<35} - {description}")
+    # Check if stdin is a terminal
+    if not os.isatty(0):
+        if DEBUG:
+            print("DEBUG: stdin is not a TTY, using numbered input fallback", flush=True)
+        # Fall back to numbered input when not interactive
+        print(f"Available tests ({len(test_files)} total):")
+        print("")
+        for i, (filename, description) in enumerate(sorted(test_files), 1):
+            print(f"{i:2d}) {filename:<35} - {description}")
+        print("")
+        print("Enter test number to run (or 'q' to go back): ", end="", flush=True)
 
+        try:
+            user_input = input()
+        except EOFError:
+            return "back"
+
+        if user_input.lower() in ('q', 'quit', 'back', ''):
+            return "back"
+
+        try:
+            choice_num = int(user_input.strip())
+            if 1 <= choice_num <= len(test_files):
+                return sorted(test_files)[choice_num - 1][0]
+        except ValueError:
+            pass
+
+        return "invalid"
+
+    # Group tests by category
+    categories = {}
+    for filename, description in test_files:
+        category = categorize_test(filename)
+        if category not in categories:
+            categories[category] = []
+        categories[category].append((filename, description))
+
+    # Create choices with category headers and numbered tests
+    choices = []
+    test_index = 1
+    test_map = {}
+
+    for category in sorted(categories.keys()):
+        if choices:  # Add separator between categories
+            choices.append("")  # Empty line
+        choices.append(f"📁 {category}:")
+        choices.append("")  # Empty line after header
+
+        for filename, description in sorted(categories[category]):
+            choices.append(f"{test_index:2d}) {filename:<35} - {description}")
+            test_map[test_index] = filename
+            test_index += 1
+
+    choices.append("")
     choices.append("← Back to test menu")
+
+    # Filter choices for display
+    display_choices = [c for c in choices if c and not c.startswith("📁") and c.strip() != ""]
+
+    if DEBUG:
+        print(f"DEBUG: display_choices count = {len(display_choices)}", flush=True)
+        print(f"DEBUG: test_map = {test_map}", flush=True)
 
     choice = questionary.select(
         f"Choose test to run ({len(test_files)} available):",
-        choices=choices,
-        instruction="(↑/↓ to navigate • Type to search • Enter to run)",
+        choices=display_choices,
+        instruction="(↑/↓ to navigate • Enter to run • Esc to go back)",
     ).ask()
+
+    if DEBUG:
+        print(f"DEBUG: raw choice = {repr(choice)}", flush=True)
 
     if choice is None or "Back" in choice:
         return "back"
 
-    # Extract test file number
+    if DEBUG:
+        print(f"DEBUG: processing choice = {choice}", flush=True)
+
+    # Extract test file
     try:
-        file_num = int(choice.split(")")[0].strip())
-        if 1 <= file_num <= len(test_files):
-            return test_files[file_num - 1][0]  # Return filename
-    except (ValueError, IndexError):
+        if ")" in choice:
+            file_num = int(choice.split(")")[0].strip())
+            if file_num in test_map:
+                result = test_map[file_num]
+                if DEBUG:
+                    print(f"DEBUG: returning filename = {result}", flush=True)
+                return result
+    except (ValueError, IndexError) as e:
+        if DEBUG:
+            print(f"DEBUG: extraction error = {e}", flush=True)
         pass
 
     return "invalid"
@@ -277,19 +367,20 @@ def test_file_menu() -> Optional[str]:
 def is_interactive():
     """Check if running in an interactive terminal."""
     import os
-    # Only check stdin since stdout may be captured by command substitution
-    return os.isatty(0)
+    # Check both stdin and stdout for interactivity
+    return os.isatty(0) or os.isatty(1)
 
 def main():
     """Main entry point."""
-    if not is_interactive():
-        # Not interactive, fall back to bash menu
-        sys.exit(1)
-
     try:
         menu_type = sys.argv[1] if len(sys.argv) > 1 else "main"
         output_file = sys.argv[2] if len(sys.argv) > 2 else None
-        
+
+        # For main and test menus, allow if stdout is a TTY (even if stdin is not)
+        if menu_type in ("main", "test-main", "development", "production", "utilities") and not is_interactive():
+            # Not interactive, fall back to bash menu
+            sys.exit(1)
+
         if menu_type == "main":
             result = main_menu()
         elif menu_type == "development":

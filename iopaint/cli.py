@@ -1,4 +1,5 @@
 import os
+import sys
 import webbrowser
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,6 +17,8 @@ from iopaint.runtime import setup_model_dir, dump_environment_info, check_device
 from iopaint.schema import InteractiveSegModel, Device, RealESRGANModel, RemoveBGModel
 
 typer_app = typer.Typer(pretty_exceptions_show_locals=False, add_completion=False)
+test_app = typer.Typer(pretty_exceptions_show_locals=False, add_completion=False)
+typer_app.add_typer(test_app, name="test", help="Run tests and testing utilities")
 
 
 @typer_app.command(help="Install all plugins dependencies")
@@ -345,6 +348,193 @@ def start(
     api = Api(app, api_config)
     api_holder["api"] = api  # Set reference so lifespan can access it
     api.launch()
+
+
+@test_app.command("list", help="List all available test files")
+def test_list():
+    """List all test files with descriptions."""
+    from scripts.unix.cli_menu import get_test_files
+
+    test_files = get_test_files()
+    if not test_files:
+        print("No test files found in iopaint/tests/")
+        return
+
+    typer.echo("Available Test Files in iopaint/tests/")
+    typer.echo("======================================")
+    typer.echo("")
+
+    for i, (filename, description) in enumerate(test_files, 1):
+        typer.echo("{:2d}) {:<35} - {}".format(i, filename, description))
+
+    typer.echo("")
+    typer.echo(f"Total: {len(test_files)} test files")
+
+
+@test_app.command("interactive", help="Interactive test selection menu")
+def test_interactive():
+    """Launch interactive test selection menu."""
+    try:
+        from scripts.unix.cli_menu import test_file_menu
+        result = test_file_menu()
+        if result and result.endswith('.py'):
+            # Run the selected test file
+            import subprocess
+            cmd = f"uv run pytest iopaint/tests/{result} -v"
+            typer.echo(f"Running: {cmd}")
+            subprocess.run(cmd, shell=True, check=True)
+        elif result == "back":
+            typer.echo("Returned to main menu")
+        else:
+            typer.echo("No test selected")
+    except ImportError as e:
+        typer.echo(f"Interactive mode not available: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@test_app.command("smoke", help="Run backend smoke test")
+def test_smoke():
+    """Run smoke test (test_model.py)."""
+    import subprocess
+    cmd = "uv run pytest iopaint/tests/test_model.py -v"
+    typer.echo(f"Running: {cmd}")
+    subprocess.run(cmd, shell=True, check=True)
+
+
+@test_app.command("full", help="Run all backend tests")
+def test_full():
+    """Run all backend tests."""
+    import subprocess
+    cmd = "uv run pytest -v"
+    typer.echo(f"Running: {cmd}")
+    subprocess.run(cmd, shell=True, check=True)
+
+
+@test_app.command("file", help="Run specific test file")
+def test_file(
+    file_path: str = typer.Argument(..., help="Path to test file")
+):
+    """Run a specific test file."""
+    import subprocess
+    cmd = f"uv run pytest {file_path} -v"
+    typer.echo(f"Running: {cmd}")
+    subprocess.run(cmd, shell=True, check=True)
+
+
+@test_app.command("k", help="Run tests matching pattern")
+def test_pattern(
+    pattern: str = typer.Argument(..., help="Test pattern to match")
+):
+    """Run tests matching a pattern (-k flag)."""
+    import subprocess
+    cmd = f"uv run pytest -k \"{pattern}\" -v"
+    typer.echo(f"Running: {cmd}")
+    subprocess.run(cmd, shell=True, check=True)
+
+
+@test_app.command("custom", help="Run pytest with custom arguments")
+def test_custom(
+    args: str = typer.Argument(..., help="Custom pytest arguments")
+):
+    """Run pytest with custom arguments."""
+    import subprocess
+    cmd = f"uv run pytest {args}"
+    typer.echo(f"Running: {cmd}")
+    subprocess.run(cmd, shell=True, check=True)
+
+
+@test_app.command("test-lint", help="Lint test files")
+def test_lint():
+    """Lint test files with ruff."""
+    import subprocess
+    typer.echo("Running: uv run ruff check iopaint/tests/ && uv run ruff format --check iopaint/tests/")
+    try:
+        subprocess.run("uv run ruff check iopaint/tests/", shell=True, check=True)
+        subprocess.run("uv run ruff format --check iopaint/tests/", shell=True, check=True)
+        typer.echo("✅ Test linting passed")
+    except subprocess.CalledProcessError as e:
+        typer.echo(f"❌ Test linting failed with exit code {e.returncode}", err=True)
+        raise typer.Exit(e.returncode)
+
+
+@test_app.command("fe-build", help="Build frontend")
+def test_fe_build():
+    """Build frontend production assets."""
+    import subprocess
+    import os
+    os.chdir("web_app")
+    cmd = "npm run build"
+    typer.echo(f"Running: {cmd}")
+    subprocess.run(cmd, shell=True, check=True)
+
+
+@test_app.command("fe-lint", help="Lint frontend code")
+def test_fe_lint():
+    """Lint frontend code."""
+    import subprocess
+    import os
+    os.chdir("web_app")
+    cmd = "npm run lint"
+    typer.echo(f"Running: {cmd}")
+    subprocess.run(cmd, shell=True, check=True)
+
+
+@test_app.command("fe-custom", help="Run custom frontend npm script")
+def test_fe_custom(
+    script: str = typer.Argument(..., help="NPM script to run")
+):
+    """Run custom frontend npm script."""
+    import subprocess
+    import os
+    os.chdir("web_app")
+    cmd = f"npm run {script}"
+    typer.echo(f"Running: {cmd}")
+    subprocess.run(cmd, shell=True, check=True)
+
+
+@test_app.callback()
+def test_callback():
+    """Test command group. Auto-detects interactive vs batch mode."""
+    import sys
+
+    # Check if a subcommand was provided (argv[2] exists and doesn't start with -)
+    has_subcommand=False
+    if len(sys.argv) >= 3:
+        # Check if argv[2] is a subcommand (not a flag)
+        subcommand = sys.argv[2]
+        if not subcommand.startswith('-'):
+            has_subcommand=True
+
+    # If no subcommand specified, launch interactive menu or list
+    if not has_subcommand:
+        if is_interactive():
+            # Launch interactive menu
+            try:
+                from scripts.unix.cli_menu import test_file_menu
+                result = test_file_menu()
+                if result and result.endswith('.py'):
+                    # Run the selected test file
+                    import subprocess
+                    cmd = f"uv run pytest iopaint/tests/{result} -v"
+                    print(f"Running: {cmd}")
+                    subprocess.run(cmd, shell=True, check=True)
+                elif result == "back":
+                    print("Returned to main menu")
+                else:
+                    print("No test selected")
+            except ImportError as e:
+                print(f"Interactive mode not available: {e}", file=sys.stderr)
+                # Fall back to list
+                test_list()
+        else:
+            # Batch mode - just list tests
+            test_list()
+        raise typer.Exit(0)
+
+
+def is_interactive():
+    """Check if running in an interactive terminal."""
+    return sys.stdin.isatty() and sys.stdout.isatty()
 
 
 @typer_app.command(help="Start IOPaint web config page")
