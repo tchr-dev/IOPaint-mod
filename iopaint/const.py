@@ -32,7 +32,7 @@ def AVAILABLE_MODELS() -> List[str]:
         _available_models_cache = get_available_models()
     return _available_models_cache
 
-DIFFUSION_MODELS = [
+DEFAULT_DIFFUSION_MODELS = [
     "runwayml/stable-diffusion-inpainting",
     "Uminosachi/realisticVisionV51_v51VAE-inpainting",
     "redstonehero/dreamshaper-inpainting",
@@ -45,6 +45,9 @@ DIFFUSION_MODELS = [
     POWERPAINT_NAME,
     ANYTEXT_NAME,
 ]
+
+def DIFFUSION_MODELS() -> List[str]:
+    return DEFAULT_DIFFUSION_MODELS
 
 NO_HALF_HELP = """
 Using full precision(fp32) model.

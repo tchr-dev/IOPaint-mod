@@ -24,8 +24,12 @@ class SDXL(DiffusionInpaintModel):
     name = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
     pad_mod = 8
     min_size = 512
-    lcm_lora_id = "latent-consistency/lcm-lora-sdxl"
     model_id_or_path = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+
+    def __init__(self, device, **kwargs):
+        from iopaint.config import get_config
+        self.lcm_lora_id = get_config().lcm_lora_models.get("sdxl", "latent-consistency/lcm-lora-sdxl")
+        super().__init__(device, **kwargs)
 
     @classmethod
     def get_shared_components(cls) -> List[str]:

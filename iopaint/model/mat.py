@@ -1875,6 +1875,9 @@ MAT_MODEL_URL = os.environ.get(
 MAT_MODEL_MD5 = os.environ.get("MAT_MODEL_MD5", "8ca927835fa3f5e21d65ffcb165377ed")
 
 
+from .manifest import get_manifest
+
+
 class MAT(InpaintModel):
     name = "mat"
     min_size = 512
@@ -1883,37 +1886,25 @@ class MAT(InpaintModel):
     is_erase_model = True
     supported_devices = ["cuda", "cpu"]
 
+    def __init__(self, device, **kwargs):
+        self.manifest = get_manifest("mat")
+        super().__init__(device, **kwargs)
+
     def init_model(self, device, **kwargs):
-        seed = 240  # pick up a random number
-        set_seed(seed)
-
-        fp16 = not kwargs.get("no_half", False)
-        use_gpu = "cuda" in str(device) and torch.cuda.is_available()
-        self.torch_dtype = torch.float16 if use_gpu and fp16 else torch.float32
-
-        G = Generator(
-            z_dim=512,
-            c_dim=0,
-            w_dim=512,
-            img_resolution=512,
-            img_channels=3,
-            mapping_kwargs={"torch_dtype": self.torch_dtype},
-        ).to(self.torch_dtype)
-        # fmt: off
-        self.model = load_model(G, MAT_MODEL_URL, device, MAT_MODEL_MD5)
-        self.z = torch.from_numpy(np.random.randn(1, G.z_dim)).to(self.torch_dtype).to(device)
-        self.label = torch.zeros([1, self.model.c_dim], device=device).to(self.torch_dtype)
-        # fmt: on
-
-    @staticmethod
-    def download():
-        download_model(MAT_MODEL_URL, MAT_MODEL_MD5)
+        self.model = load_model(self.manifest.url, device, self.manifest.md5).eval()
 
     @staticmethod
     def is_downloaded() -> bool:
-        return os.path.exists(get_cache_path_by_url(MAT_MODEL_URL))
+        manifest = get_manifest("mat")
+        return os.path.exists(get_cache_path_by_url(manifest.url))
+
+    @staticmethod
+    def download():
+        manifest = get_manifest("mat")
+        download_model(manifest.url, manifest.md5)
 
     def forward(self, image, mask, config: InpaintRequest):
+
         """Input images and output images have same size
         images: [H, W, C] RGB
         masks: [H, W] mask area == 255

@@ -11,266 +11,68 @@ import numpy as np
 
 from .base import InpaintModel
 
-ZITS_INPAINT_MODEL_URL = os.environ.get(
-    "ZITS_INPAINT_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/add_zits/zits-inpaint-0717.pt",
-)
-ZITS_INPAINT_MODEL_MD5 = os.environ.get(
-    "ZITS_INPAINT_MODEL_MD5", "9978cc7157dc29699e42308d675b2154"
-)
-
-ZITS_EDGE_LINE_MODEL_URL = os.environ.get(
-    "ZITS_EDGE_LINE_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/add_zits/zits-edge-line-0717.pt",
-)
-ZITS_EDGE_LINE_MODEL_MD5 = os.environ.get(
-    "ZITS_EDGE_LINE_MODEL_MD5", "55e31af21ba96bbf0c80603c76ea8c5f"
-)
-
-ZITS_STRUCTURE_UPSAMPLE_MODEL_URL = os.environ.get(
-    "ZITS_STRUCTURE_UPSAMPLE_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/add_zits/zits-structure-upsample-0717.pt",
-)
-ZITS_STRUCTURE_UPSAMPLE_MODEL_MD5 = os.environ.get(
-    "ZITS_STRUCTURE_UPSAMPLE_MODEL_MD5", "3d88a07211bd41b2ec8cc0d999f29927"
-)
-
-ZITS_WIRE_FRAME_MODEL_URL = os.environ.get(
-    "ZITS_WIRE_FRAME_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/add_zits/zits-wireframe-0717.pt",
-)
-ZITS_WIRE_FRAME_MODEL_MD5 = os.environ.get(
-    "ZITS_WIRE_FRAME_MODEL_MD5", "a9727c63a8b48b65c905d351b21ce46b"
-)
-
-
-def resize(img, height, width, center_crop=False):
-    imgh, imgw = img.shape[0:2]
-
-    if center_crop and imgh != imgw:
-        # center crop
-        side = np.minimum(imgh, imgw)
-        j = (imgh - side) // 2
-        i = (imgw - side) // 2
-        img = img[j : j + side, i : i + side, ...]
-
-    if imgh > height and imgw > width:
-        inter = cv2.INTER_AREA
-    else:
-        inter = cv2.INTER_LINEAR
-    img = cv2.resize(img, (height, width), interpolation=inter)
-
-    return img
-
-
-def to_tensor(img, scale=True, norm=False):
-    if img.ndim == 2:
-        img = img[:, :, np.newaxis]
-    c = img.shape[-1]
-
-    if scale:
-        img_t = torch.from_numpy(img).permute(2, 0, 1).float().div(255)
-    else:
-        img_t = torch.from_numpy(img).permute(2, 0, 1).float()
-
-    if norm:
-        mean = torch.tensor([0.5, 0.5, 0.5]).reshape(c, 1, 1)
-        std = torch.tensor([0.5, 0.5, 0.5]).reshape(c, 1, 1)
-        img_t = (img_t - mean) / std
-    return img_t
-
-
-def load_masked_position_encoding(mask):
-    ones_filter = np.ones((3, 3), dtype=np.float32)
-    d_filter1 = np.array([[1, 1, 0], [1, 1, 0], [0, 0, 0]], dtype=np.float32)
-    d_filter2 = np.array([[0, 0, 0], [1, 1, 0], [1, 1, 0]], dtype=np.float32)
-    d_filter3 = np.array([[0, 1, 1], [0, 1, 1], [0, 0, 0]], dtype=np.float32)
-    d_filter4 = np.array([[0, 0, 0], [0, 1, 1], [0, 1, 1]], dtype=np.float32)
-    str_size = 256
-    pos_num = 128
-
-    ori_mask = mask.copy()
-    ori_h, ori_w = ori_mask.shape[0:2]
-    ori_mask = ori_mask / 255
-    mask = cv2.resize(mask, (str_size, str_size), interpolation=cv2.INTER_AREA)
-    mask[mask > 0] = 255
-    h, w = mask.shape[0:2]
-    mask3 = mask.copy()
-    mask3 = 1.0 - (mask3 / 255.0)
-    pos = np.zeros((h, w), dtype=np.int32)
-    direct = np.zeros((h, w, 4), dtype=np.int32)
-    i = 0
-    while np.sum(1 - mask3) > 0:
-        i += 1
-        mask3_ = cv2.filter2D(mask3, -1, ones_filter)
-        mask3_[mask3_ > 0] = 1
-        sub_mask = mask3_ - mask3
-        pos[sub_mask == 1] = i
-
-        m = cv2.filter2D(mask3, -1, d_filter1)
-        m[m > 0] = 1
-        m = m - mask3
-        direct[m == 1, 0] = 1
-
-        m = cv2.filter2D(mask3, -1, d_filter2)
-        m[m > 0] = 1
-        m = m - mask3
-        direct[m == 1, 1] = 1
-
-        m = cv2.filter2D(mask3, -1, d_filter3)
-        m[m > 0] = 1
-        m = m - mask3
-        direct[m == 1, 2] = 1
-
-        m = cv2.filter2D(mask3, -1, d_filter4)
-        m[m > 0] = 1
-        m = m - mask3
-        direct[m == 1, 3] = 1
-
-        mask3 = mask3_
-
-    abs_pos = pos.copy()
-    rel_pos = pos / (str_size / 2)  # to 0~1 maybe larger than 1
-    rel_pos = (rel_pos * pos_num).astype(np.int32)
-    rel_pos = np.clip(rel_pos, 0, pos_num - 1)
-
-    if ori_w != w or ori_h != h:
-        rel_pos = cv2.resize(rel_pos, (ori_w, ori_h), interpolation=cv2.INTER_NEAREST)
-        rel_pos[ori_mask == 0] = 0
-        direct = cv2.resize(direct, (ori_w, ori_h), interpolation=cv2.INTER_NEAREST)
-        direct[ori_mask == 0, :] = 0
-
-    return rel_pos, abs_pos, direct
-
-
-def load_image(img, mask, device, sigma256=3.0):
-    """
-    Args:
-        img: [H, W, C] RGB
-        mask: [H, W] 255 为 masks 区域
-        sigma256:
-
-    Returns:
-
-    """
-    h, w, _ = img.shape
-    imgh, imgw = img.shape[0:2]
-    img_256 = resize(img, 256, 256)
-
-    mask = (mask > 127).astype(np.uint8) * 255
-    mask_256 = cv2.resize(mask, (256, 256), interpolation=cv2.INTER_AREA)
-    mask_256[mask_256 > 0] = 255
-
-    mask_512 = cv2.resize(mask, (512, 512), interpolation=cv2.INTER_AREA)
-    mask_512[mask_512 > 0] = 255
-
-    # original skimage implemention
-    # https://scikit-image.org/docs/stable/api/skimage.feature.html#skimage.feature.canny
-    # low_threshold: Lower bound for hysteresis thresholding (linking edges). If None, low_threshold is set to 10% of dtype’s max.
-    # high_threshold: Upper bound for hysteresis thresholding (linking edges). If None, high_threshold is set to 20% of dtype’s max.
-
-    try:
-        import skimage
-
-        gray_256 = skimage.color.rgb2gray(img_256)
-        edge_256 = skimage.feature.canny(gray_256, sigma=3.0, mask=None).astype(float)
-        # cv2.imwrite("skimage_gray.jpg", (gray_256*255).astype(np.uint8))
-        # cv2.imwrite("skimage_edge.jpg", (edge_256*255).astype(np.uint8))
-    except:
-        gray_256 = cv2.cvtColor(img_256, cv2.COLOR_RGB2GRAY)
-        gray_256_blured = cv2.GaussianBlur(
-            gray_256, ksize=(7, 7), sigmaX=sigma256, sigmaY=sigma256
-        )
-        edge_256 = cv2.Canny(
-            gray_256_blured, threshold1=int(255 * 0.1), threshold2=int(255 * 0.2)
-        )
-
-    # cv2.imwrite("opencv_edge.jpg", edge_256)
-
-    # line
-    img_512 = resize(img, 512, 512)
-
-    rel_pos, abs_pos, direct = load_masked_position_encoding(mask)
-
-    batch = dict()
-    batch["images"] = to_tensor(img.copy()).unsqueeze(0).to(device)
-    batch["img_256"] = to_tensor(img_256, norm=True).unsqueeze(0).to(device)
-    batch["masks"] = to_tensor(mask).unsqueeze(0).to(device)
-    batch["mask_256"] = to_tensor(mask_256).unsqueeze(0).to(device)
-    batch["mask_512"] = to_tensor(mask_512).unsqueeze(0).to(device)
-    batch["edge_256"] = to_tensor(edge_256, scale=False).unsqueeze(0).to(device)
-    batch["img_512"] = to_tensor(img_512).unsqueeze(0).to(device)
-    batch["rel_pos"] = torch.LongTensor(rel_pos).unsqueeze(0).to(device)
-    batch["abs_pos"] = torch.LongTensor(abs_pos).unsqueeze(0).to(device)
-    batch["direct"] = torch.LongTensor(direct).unsqueeze(0).to(device)
-    batch["h"] = imgh
-    batch["w"] = imgw
-
-    return batch
-
-
-def to_device(data, device):
-    if isinstance(data, torch.Tensor):
-        return data.to(device)
-    if isinstance(data, dict):
-        for key in data:
-            if isinstance(data[key], torch.Tensor):
-                data[key] = data[key].to(device)
-        return data
-    if isinstance(data, list):
-        return [to_device(d, device) for d in data]
+from .manifest import get_manifest
 
 
 class ZITS(InpaintModel):
-    name = "zits"
-    min_size = 256
-    pad_mod = 32
-    pad_to_square = True
-    is_erase_model = True
-    supported_devices = ["cuda", "cpu"]
-
     def __init__(self, device, **kwargs):
-        """
-
-        Args:
-            device:
-        """
-        super().__init__(device)
-        self.device = device
+        self.manifest = get_manifest("zits")
+        self.name = self.manifest.name
+        self.is_erase_model = self.manifest.is_erase_model
+        self.supported_devices = self.manifest.supported_devices
+        self.VERSION = self.manifest.version
+        self.VERSION_URL = self.manifest.version_url
+        super().__init__(device, **kwargs)
         self.sample_edge_line_iterations = 1
 
     def init_model(self, device, **kwargs):
         self.wireframe = load_jit_model(
-            ZITS_WIRE_FRAME_MODEL_URL, device, ZITS_WIRE_FRAME_MODEL_MD5
+            self.manifest.extra_models["wireframe"]["url"],
+            device,
+            self.manifest.extra_models["wireframe"]["md5"],
         )
         self.edge_line = load_jit_model(
-            ZITS_EDGE_LINE_MODEL_URL, device, ZITS_EDGE_LINE_MODEL_MD5
+            self.manifest.extra_models["edge_line"]["url"],
+            device,
+            self.manifest.extra_models["edge_line"]["md5"],
         )
         self.structure_upsample = load_jit_model(
-            ZITS_STRUCTURE_UPSAMPLE_MODEL_URL, device, ZITS_STRUCTURE_UPSAMPLE_MODEL_MD5
+            self.manifest.extra_models["structure_upsample"]["url"],
+            device,
+            self.manifest.extra_models["structure_upsample"]["md5"],
         )
         self.inpaint = load_jit_model(
-            ZITS_INPAINT_MODEL_URL, device, ZITS_INPAINT_MODEL_MD5
+            self.manifest.url, device, self.manifest.md5
         )
 
     @staticmethod
     def download():
-        download_model(ZITS_WIRE_FRAME_MODEL_URL, ZITS_WIRE_FRAME_MODEL_MD5)
-        download_model(ZITS_EDGE_LINE_MODEL_URL, ZITS_EDGE_LINE_MODEL_MD5)
+        manifest = get_manifest("zits")
         download_model(
-            ZITS_STRUCTURE_UPSAMPLE_MODEL_URL, ZITS_STRUCTURE_UPSAMPLE_MODEL_MD5
+            manifest.extra_models["wireframe"]["url"],
+            manifest.extra_models["wireframe"]["md5"],
         )
-        download_model(ZITS_INPAINT_MODEL_URL, ZITS_INPAINT_MODEL_MD5)
+        download_model(
+            manifest.extra_models["edge_line"]["url"],
+            manifest.extra_models["edge_line"]["md5"],
+        )
+        download_model(
+            manifest.extra_models["structure_upsample"]["url"],
+            manifest.extra_models["structure_upsample"]["md5"],
+        )
+        download_model(manifest.url, manifest.md5)
 
     @staticmethod
     def is_downloaded() -> bool:
+        manifest = get_manifest("zits")
         model_paths = [
-            get_cache_path_by_url(ZITS_WIRE_FRAME_MODEL_URL),
-            get_cache_path_by_url(ZITS_EDGE_LINE_MODEL_URL),
-            get_cache_path_by_url(ZITS_STRUCTURE_UPSAMPLE_MODEL_URL),
-            get_cache_path_by_url(ZITS_INPAINT_MODEL_URL),
+            get_cache_path_by_url(manifest.extra_models["wireframe"]["url"]),
+            get_cache_path_by_url(manifest.extra_models["edge_line"]["url"]),
+            get_cache_path_by_url(manifest.extra_models["structure_upsample"]["url"]),
+            get_cache_path_by_url(manifest.url),
         ]
         return all([os.path.exists(it) for it in model_paths])
+
 
     def wireframe_edge_and_line(self, items, enable: bool):
         # 最终向 items 中添加 edge 和 line key

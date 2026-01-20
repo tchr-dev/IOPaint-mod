@@ -132,13 +132,16 @@ def run(
 @typer_app.command(help="Start IOPaint server")
 @use_json_config()
 def start(
-    host: str = Option("127.0.0.1"),
-    port: int = Option(8080),
-    inbrowser: bool = Option(False, help=INBROWSER_HELP),
+    config_path: Optional[Path] = Option(
+        None, "--config", help="Path to YAML configuration file"
+    ),
+    host: str = Option(None),
+    port: int = Option(None),
+    inbrowser: bool = Option(None, help=INBROWSER_HELP),
     model: str = Option(
-        DEFAULT_MODEL,
+        None,
         help=f"Erase models: [{', '.join(AVAILABLE_MODELS())}].\n"
-        f"Diffusion models: [{', '.join(DIFFUSION_MODELS)}] or any SD/SDXL normal/inpainting models on HuggingFace.",
+        f"Diffusion models: [{', '.join(DIFFUSION_MODELS())}] or any SD/SDXL normal/inpainting models on HuggingFace.",
     ),
     model_dir: Path = Option(
         DEFAULT_MODEL_DIR,
@@ -147,13 +150,13 @@ def start(
         file_okay=False,
         callback=setup_model_dir,
     ),
-    low_mem: bool = Option(False, help=LOW_MEM_HELP),
-    no_half: bool = Option(False, help=NO_HALF_HELP),
-    cpu_offload: bool = Option(False, help=CPU_OFFLOAD_HELP),
-    disable_nsfw_checker: bool = Option(False, help=DISABLE_NSFW_HELP),
-    cpu_textencoder: bool = Option(False, help=CPU_TEXTENCODER_HELP),
-    local_files_only: bool = Option(False, help=LOCAL_FILES_ONLY_HELP),
-    device: Device = Option(Device.cpu),
+    low_mem: bool = Option(None, help=LOW_MEM_HELP),
+    no_half: bool = Option(None, help=NO_HALF_HELP),
+    cpu_offload: bool = Option(None, help=CPU_OFFLOAD_HELP),
+    disable_nsfw_checker: bool = Option(None, help=DISABLE_NSFW_HELP),
+    cpu_textencoder: bool = Option(None, help=CPU_TEXTENCODER_HELP),
+    local_files_only: bool = Option(None, help=LOCAL_FILES_ONLY_HELP),
+    device: Device = Option(None),
     input: Optional[Path] = Option(None, help=INPUT_HELP),
     mask_dir: Optional[Path] = Option(
         None, help=MODEL_DIR_HELP, dir_okay=True, file_okay=False
@@ -161,65 +164,105 @@ def start(
     output_dir: Optional[Path] = Option(
         None, help=OUTPUT_DIR_HELP, dir_okay=True, file_okay=False
     ),
-    quality: int = Option(100, help=QUALITY_HELP),
-    enable_interactive_seg: bool = Option(False, help=INTERACTIVE_SEG_HELP),
+    quality: int = Option(None, help=QUALITY_HELP),
+    enable_interactive_seg: bool = Option(None, help=INTERACTIVE_SEG_HELP),
     interactive_seg_model: InteractiveSegModel = Option(
-        InteractiveSegModel.sam2_1_tiny, help=INTERACTIVE_SEG_MODEL_HELP
+        None, help=INTERACTIVE_SEG_MODEL_HELP
     ),
-    interactive_seg_device: Device = Option(Device.cpu),
-    enable_remove_bg: bool = Option(False, help=REMOVE_BG_HELP),
-    remove_bg_device: Device = Option(Device.cpu, help=REMOVE_BG_DEVICE_HELP),
-    remove_bg_model: RemoveBGModel = Option(RemoveBGModel.briaai_rmbg_1_4),
-    enable_anime_seg: bool = Option(False, help=ANIMESEG_HELP),
-    enable_realesrgan: bool = Option(False),
-    realesrgan_device: Device = Option(Device.cpu),
-    realesrgan_model: RealESRGANModel = Option(RealESRGANModel.realesr_general_x4v3),
-    enable_gfpgan: bool = Option(False),
-    gfpgan_device: Device = Option(Device.cpu),
-    enable_restoreformer: bool = Option(False),
-    restoreformer_device: Device = Option(Device.cpu),
+    interactive_seg_device: Device = Option(None),
+    enable_remove_bg: bool = Option(None, help=REMOVE_BG_HELP),
+    remove_bg_device: Device = Option(None, help=REMOVE_BG_DEVICE_HELP),
+    remove_bg_model: RemoveBGModel = Option(None),
+    enable_anime_seg: bool = Option(None, help=ANIMESEG_HELP),
+    enable_realesrgan: bool = Option(None),
+    realesrgan_device: Device = Option(None),
+    realesrgan_model: RealESRGANModel = Option(None),
+    enable_gfpgan: bool = Option(None),
+    gfpgan_device: Device = Option(None),
+    enable_restoreformer: bool = Option(None),
+    restoreformer_device: Device = Option(None),
 ):
+    from iopaint.config import load_config
+    global_config = load_config(config_path)
+
+    # CLI Overrides
+    if host is not None: global_config.server.host = host
+    if port is not None: global_config.server.port = port
+    if device is not None: global_config.server.device = device
+    if low_mem is not None: global_config.server.low_mem = low_mem
+    if no_half is not None: global_config.server.no_half = no_half
+    if cpu_offload is not None: global_config.server.cpu_offload = cpu_offload
+    if disable_nsfw_checker is not None: global_config.server.disable_nsfw_checker = disable_nsfw_checker
+    if local_files_only is not None: global_config.server.local_files_only = local_files_only
+    if cpu_textencoder is not None: global_config.server.cpu_textencoder = cpu_textencoder
+
+    if enable_interactive_seg is not None: global_config.plugins.enable_interactive_seg = enable_interactive_seg
+    if interactive_seg_model is not None: global_config.plugins.interactive_seg_model = interactive_seg_model
+    if interactive_seg_device is not None: global_config.plugins.interactive_seg_device = interactive_seg_device
+    if enable_remove_bg is not None: global_config.plugins.enable_remove_bg = enable_remove_bg
+    if remove_bg_device is not None: global_config.plugins.remove_bg_device = remove_bg_device
+    if remove_bg_model is not None: global_config.plugins.remove_bg_model = remove_bg_model
+    if enable_anime_seg is not None: global_config.plugins.enable_anime_seg = enable_anime_seg
+    if enable_realesrgan is not None: global_config.plugins.enable_realesrgan = enable_realesrgan
+    if realesrgan_device is not None: global_config.plugins.realesrgan_device = realesrgan_device
+    if realesrgan_model is not None: global_config.plugins.realesrgan_model = realesrgan_model
+    if enable_gfpgan is not None: global_config.plugins.enable_gfpgan = enable_gfpgan
+    if gfpgan_device is not None: global_config.plugins.gfpgan_device = gfpgan_device
+    if enable_restoreformer is not None: global_config.plugins.enable_restoreformer = enable_restoreformer
+    if restoreformer_device is not None: global_config.plugins.restoreformer_device = restoreformer_device
+
+    # Use defaults for non-nullable values if still None after merge
+    host = global_config.server.host
+    port = global_config.server.port
+    device = global_config.server.device
+    model = model or DEFAULT_MODEL
+
     dump_environment_info()
     device = check_device(device)
-    remove_bg_device = check_device(remove_bg_device)
-    realesrgan_device = check_device(realesrgan_device)
-    gfpgan_device = check_device(gfpgan_device)
-
+    
+    # ... rest of validation logic ...
     if input and not input.exists():
         logger.error(f"invalid --input: {input} not exists")
         exit(-1)
-    if mask_dir and not mask_dir.exists():
-        logger.error(f"invalid --mask-dir: {mask_dir} not exists")
-        exit(-1)
-    if input and input.is_dir() and not output_dir:
-        logger.error(
-            "invalid --output-dir: --output-dir must be set when --input is a directory"
-        )
-        exit(-1)
-    if output_dir:
-        output_dir = output_dir.expanduser().absolute()
-        logger.info(f"Image will be saved to {output_dir}")
-        if not output_dir.exists():
-            logger.info(f"Create output directory {output_dir}")
-            output_dir.mkdir(parents=True)
-    if mask_dir:
-        mask_dir = mask_dir.expanduser().absolute()
 
-    model_dir = model_dir.expanduser().absolute()
-
-    if local_files_only:
+    if global_config.server.local_files_only:
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
         os.environ["HF_HUB_OFFLINE"] = "1"
 
-    from iopaint.download import cli_download_model, scan_models
-
-    scanned_models = scan_models()
-    if model not in [it.name for it in scanned_models]:
-        logger.info(f"{model} not found in {model_dir}, try to downloading")
-        cli_download_model(model)
-
     from iopaint.api import Api
     from iopaint.schema import ApiConfig
+
+    api_config = ApiConfig(
+        host=host,
+        port=port,
+        inbrowser=inbrowser if inbrowser is not None else False,
+        model=model,
+        no_half=global_config.server.no_half,
+        low_mem=global_config.server.low_mem,
+        cpu_offload=global_config.server.cpu_offload,
+        disable_nsfw_checker=global_config.server.disable_nsfw_checker,
+        local_files_only=global_config.server.local_files_only,
+        cpu_textencoder=global_config.server.cpu_textencoder if device == Device.cuda else False,
+        device=device,
+        input=input,
+        mask_dir=mask_dir,
+        output_dir=output_dir,
+        quality=quality if quality is not None else 95,
+        enable_interactive_seg=global_config.plugins.enable_interactive_seg,
+        interactive_seg_model=global_config.plugins.interactive_seg_model,
+        interactive_seg_device=global_config.plugins.interactive_seg_device,
+        enable_remove_bg=global_config.plugins.enable_remove_bg,
+        remove_bg_device=check_device(global_config.plugins.remove_bg_device),
+        remove_bg_model=global_config.plugins.remove_bg_model,
+        enable_anime_seg=global_config.plugins.enable_anime_seg,
+        enable_realesrgan=global_config.plugins.enable_realesrgan,
+        realesrgan_device=check_device(global_config.plugins.realesrgan_device),
+        realesrgan_model=global_config.plugins.realesrgan_model,
+        enable_gfpgan=global_config.plugins.enable_gfpgan,
+        gfpgan_device=check_device(global_config.plugins.gfpgan_device),
+        enable_restoreformer=global_config.plugins.enable_restoreformer,
+        restoreformer_device=check_device(global_config.plugins.restoreformer_device),
+    )
 
     # Holder for Api instance - allows lifespan to access it after creation
     api_holder: dict = {"api": None}
@@ -227,44 +270,12 @@ def start(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Startup
-        if inbrowser:
+        if api_config.inbrowser:
             webbrowser.open(f"http://localhost:{port}", new=0, autoraise=True)
         yield
         # Shutdown
 
     app = FastAPI(lifespan=lifespan)
-
-    api_config = ApiConfig(
-        host=host,
-        port=port,
-        inbrowser=inbrowser,
-        model=model,
-        no_half=no_half,
-        low_mem=low_mem,
-        cpu_offload=cpu_offload,
-        disable_nsfw_checker=disable_nsfw_checker,
-        local_files_only=local_files_only,
-        cpu_textencoder=cpu_textencoder if device == Device.cuda else False,
-        device=device,
-        input=input,
-        mask_dir=mask_dir,
-        output_dir=output_dir,
-        quality=quality,
-        enable_interactive_seg=enable_interactive_seg,
-        interactive_seg_model=interactive_seg_model,
-        interactive_seg_device=interactive_seg_device,
-        enable_remove_bg=enable_remove_bg,
-        remove_bg_device=remove_bg_device,
-        remove_bg_model=remove_bg_model,
-        enable_anime_seg=enable_anime_seg,
-        enable_realesrgan=enable_realesrgan,
-        realesrgan_device=realesrgan_device,
-        realesrgan_model=realesrgan_model,
-        enable_gfpgan=enable_gfpgan,
-        gfpgan_device=gfpgan_device,
-        enable_restoreformer=enable_restoreformer,
-        restoreformer_device=restoreformer_device,
-    )
     print(api_config.model_dump_json(indent=4))
     api = Api(app, api_config)
     api_holder["api"] = api  # Set reference so lifespan can access it

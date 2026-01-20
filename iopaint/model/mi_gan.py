@@ -14,31 +14,34 @@ from iopaint.helper import (
 from .base import InpaintModel
 from iopaint.schema import InpaintRequest
 
-MIGAN_MODEL_URL = os.environ.get(
-    "MIGAN_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/migan/migan_traced.pt",
-)
-MIGAN_MODEL_MD5 = os.environ.get("MIGAN_MODEL_MD5", "76eb3b1a71c400ee3290524f7a11b89c")
+from .manifest import get_manifest
 
 
 class MIGAN(InpaintModel):
-    name = "migan"
-    min_size = 512
-    pad_mod = 512
-    pad_to_square = True
-    is_erase_model = True
-    supported_devices = ["cuda", "cpu"]
+    def __init__(self, device, **kwargs):
+        self.manifest = get_manifest("migan")
+        self.name = self.manifest.name
+        self.is_erase_model = self.manifest.is_erase_model
+        self.supported_devices = self.manifest.supported_devices
+        self.VERSION = self.manifest.version
+        self.VERSION_URL = self.manifest.version_url
+        super().__init__(device, **kwargs)
+        self.min_size = 512
+        self.pad_mod = 512
+        self.pad_to_square = True
 
     def init_model(self, device, **kwargs):
-        self.model = load_jit_model(MIGAN_MODEL_URL, device, MIGAN_MODEL_MD5).eval()
+        self.model = load_jit_model(self.manifest.url, device, self.manifest.md5).eval()
 
     @staticmethod
     def download():
-        download_model(MIGAN_MODEL_URL, MIGAN_MODEL_MD5)
+        manifest = get_manifest("migan")
+        download_model(manifest.url, manifest.md5)
 
     @staticmethod
     def is_downloaded() -> bool:
-        return os.path.exists(get_cache_path_by_url(MIGAN_MODEL_URL))
+        manifest = get_manifest("migan")
+        return os.path.exists(get_cache_path_by_url(manifest.url))
 
     @torch.no_grad()
     def __call__(self, image, mask, config: InpaintRequest):

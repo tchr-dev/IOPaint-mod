@@ -1,0 +1,43 @@
+server:
+  host: "127.0.0.1"
+  port: 8080
+  device: "cpu"
+  no_half: false
+  low_mem: false
+  cpu_offload: false
+  disable_nsfw_checker: false
+  local_files_only: false
+  cpu_textencoder: false
+
+models:
+  - name: "lama"
+    url: "https://github.com/Sanster/models/releases/download/add_big_lama/big-lama.pt"
+    md5: "e3aa4aaa15225a33ec84f9f4bc47e500"
+    version: "1.0.0"
+    version_url: "https://api.github.com/repos/Sanster/models/releases/latest"
+    is_erase_model: true
+    supported_devices: ["cuda", "cpu"]
+  
+  - name: "anime-lama"
+    url: "https://github.com/Sanster/models/releases/download/AnimeMangaInpainting/anime-manga-big-lama.pt"
+    md5: "29f284f36a0a510bcacf39ecf4c4d54f"
+    version: "1.0.0"
+    version_url: "https://api.github.com/repos/Sanster/models/releases/latest"
+    is_erase_model: true
+    supported_devices: ["cuda", "cpu"]
+
+plugins:
+  enable_interactive_seg: false
+  interactive_seg_model: "sam2_1_tiny"
+  interactive_seg_device: "cpu"
+  enable_remove_bg: false
+  remove_bg_device: "cpu"
+  remove_bg_model: "briaai/RMBG-1.4"
+  enable_anime_seg: false
+  enable_realesrgan: false
+  realesrgan_device: "cpu"
+  realesrgan_model: "realesr-general-x4v3"
+  enable_gfpgan: false
+  gfpgan_device: "cpu"
+  enable_restoreformer: false
+  restoreformer_device: "cpu"

@@ -22,30 +22,7 @@ from .utils import (
     timestep_embedding,
 )
 
-LDM_ENCODE_MODEL_URL = os.environ.get(
-    "LDM_ENCODE_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/add_ldm/cond_stage_model_encode.pt",
-)
-LDM_ENCODE_MODEL_MD5 = os.environ.get(
-    "LDM_ENCODE_MODEL_MD5", "23239fc9081956a3e70de56472b3f296"
-)
-
-LDM_DECODE_MODEL_URL = os.environ.get(
-    "LDM_DECODE_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/add_ldm/cond_stage_model_decode.pt",
-)
-LDM_DECODE_MODEL_MD5 = os.environ.get(
-    "LDM_DECODE_MODEL_MD5", "fe419cd15a750d37a4733589d0d3585c"
-)
-
-LDM_DIFFUSION_MODEL_URL = os.environ.get(
-    "LDM_DIFFUSION_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/add_ldm/diffusion.pt",
-)
-
-LDM_DIFFUSION_MODEL_MD5 = os.environ.get(
-    "LDM_DIFFUSION_MODEL_MD5", "b0afda12bf790c03aba2a7431f11d22d"
-)
+from .manifest import get_manifest
 
 
 class DDPM(nn.Module):
@@ -235,29 +212,30 @@ class LatentDiffusion(DDPM):
 
 
 class LDM(InpaintModel):
-    name = "ldm"
-    pad_mod = 32
-    is_erase_model = True
-    supported_devices = ["cuda", "cpu"]
-
-    # Version metadata for update checking
-    VERSION = "1.0.0"
-    VERSION_URL = "https://api.github.com/repos/Sanster/models/releases/latest"
-
     def __init__(self, device, fp16: bool = True, **kwargs):
         self.fp16 = fp16
-        super().__init__(device)
+        self.manifest = get_manifest("ldm")
+        self.name = self.manifest.name
+        self.is_erase_model = self.manifest.is_erase_model
+        self.supported_devices = self.manifest.supported_devices
+        self.VERSION = self.manifest.version
+        self.VERSION_URL = self.manifest.version_url
+        super().__init__(device, **kwargs)
         self.device = device
 
     def init_model(self, device, **kwargs):
         self.diffusion_model = load_jit_model(
-            LDM_DIFFUSION_MODEL_URL, device, LDM_DIFFUSION_MODEL_MD5
+            self.manifest.url, device, self.manifest.md5
         )
         self.cond_stage_model_decode = load_jit_model(
-            LDM_DECODE_MODEL_URL, device, LDM_DECODE_MODEL_MD5
+            self.manifest.extra_models["decode"]["url"],
+            device,
+            self.manifest.extra_models["decode"]["md5"],
         )
         self.cond_stage_model_encode = load_jit_model(
-            LDM_ENCODE_MODEL_URL, device, LDM_ENCODE_MODEL_MD5
+            self.manifest.extra_models["encode"]["url"],
+            device,
+            self.manifest.extra_models["encode"]["md5"],
         )
         if self.fp16 and "cuda" in str(device):
             self.diffusion_model = self.diffusion_model.half()
@@ -268,16 +246,24 @@ class LDM(InpaintModel):
 
     @staticmethod
     def download():
-        download_model(LDM_DIFFUSION_MODEL_URL, LDM_DIFFUSION_MODEL_MD5)
-        download_model(LDM_DECODE_MODEL_URL, LDM_DECODE_MODEL_MD5)
-        download_model(LDM_ENCODE_MODEL_URL, LDM_ENCODE_MODEL_MD5)
+        manifest = get_manifest("ldm")
+        download_model(manifest.url, manifest.md5)
+        download_model(
+            manifest.extra_models["decode"]["url"],
+            manifest.extra_models["decode"]["md5"],
+        )
+        download_model(
+            manifest.extra_models["encode"]["url"],
+            manifest.extra_models["encode"]["md5"],
+        )
 
     @staticmethod
     def is_downloaded() -> bool:
+        manifest = get_manifest("ldm")
         model_paths = [
-            get_cache_path_by_url(LDM_DIFFUSION_MODEL_URL),
-            get_cache_path_by_url(LDM_DECODE_MODEL_URL),
-            get_cache_path_by_url(LDM_ENCODE_MODEL_URL),
+            get_cache_path_by_url(manifest.url),
+            get_cache_path_by_url(manifest.extra_models["decode"]["url"]),
+            get_cache_path_by_url(manifest.extra_models["encode"]["url"]),
         ]
         return all([os.path.exists(it) for it in model_paths])
 

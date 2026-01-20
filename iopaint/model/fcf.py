@@ -1621,6 +1621,9 @@ FCF_MODEL_URL = os.environ.get(
 FCF_MODEL_MD5 = os.environ.get("FCF_MODEL_MD5", "3323152bc01bf1c56fd8aba74435a211")
 
 
+from .manifest import get_manifest
+
+
 class FcF(InpaintModel):
     name = "fcf"
     min_size = 512
@@ -1629,84 +1632,25 @@ class FcF(InpaintModel):
     is_erase_model = True
     supported_devices = ["cuda", "cpu"]
 
+    def __init__(self, device, **kwargs):
+        self.manifest = get_manifest("fcf")
+        super().__init__(device, **kwargs)
+
     def init_model(self, device, **kwargs):
-        seed = 0
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-
-        kwargs = {
-            "channel_base": 1 * 32768,
-            "channel_max": 512,
-            "num_fp16_res": 4,
-            "conv_clamp": 256,
-        }
-        G = Generator(
-            z_dim=512,
-            c_dim=0,
-            w_dim=512,
-            img_resolution=512,
-            img_channels=3,
-            synthesis_kwargs=kwargs,
-            encoder_kwargs=kwargs,
-            mapping_kwargs={"num_layers": 2},
-        )
-        self.model = load_model(G, FCF_MODEL_URL, device, FCF_MODEL_MD5)
-        self.label = torch.zeros([1, self.model.c_dim], device=device)
-
-    @staticmethod
-    def download():
-        download_model(FCF_MODEL_URL, FCF_MODEL_MD5)
+        self.model = load_model(self.manifest.url, device, self.manifest.md5).eval()
 
     @staticmethod
     def is_downloaded() -> bool:
-        return os.path.exists(get_cache_path_by_url(FCF_MODEL_URL))
+        manifest = get_manifest("fcf")
+        return os.path.exists(get_cache_path_by_url(manifest.url))
 
-    @torch.no_grad()
-    def __call__(self, image, mask, config: InpaintRequest):
-        """
-        images: [H, W, C] RGB, not normalized
-        masks: [H, W]
-        return: BGR IMAGE
-        """
-        if image.shape[0] == 512 and image.shape[1] == 512:
-            return self._pad_forward(image, mask, config)
-
-        boxes = boxes_from_mask(mask)
-        crop_result = []
-        config.hd_strategy_crop_margin = 128
-        for box in boxes:
-            crop_image, crop_mask, crop_box = self._crop_box(image, mask, box, config)
-            origin_size = crop_image.shape[:2]
-            resize_image = resize_max_size(crop_image, size_limit=512)
-            resize_mask = resize_max_size(crop_mask, size_limit=512)
-            inpaint_result = self._pad_forward(resize_image, resize_mask, config)
-
-            # only paste masked area result
-            inpaint_result = cv2.resize(
-                inpaint_result,
-                (origin_size[1], origin_size[0]),
-                interpolation=cv2.INTER_CUBIC,
-            )
-
-            original_pixel_indices = crop_mask < 127
-            inpaint_result[original_pixel_indices] = crop_image[:, :, ::-1][
-                original_pixel_indices
-            ]
-
-            crop_result.append((inpaint_result, crop_box))
-
-        inpaint_result = image[:, :, ::-1].copy()
-        for crop_image, crop_box in crop_result:
-            x1, y1, x2, y2 = crop_box
-            inpaint_result[y1:y2, x1:x2, :] = crop_image
-
-        return inpaint_result
+    @staticmethod
+    def download():
+        manifest = get_manifest("fcf")
+        download_model(manifest.url, manifest.md5)
 
     def forward(self, image, mask, config: InpaintRequest):
+
         """Input images and output images have same size
         images: [H, W, C] RGB
         masks: [H, W] mask area == 255

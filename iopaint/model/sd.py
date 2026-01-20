@@ -19,7 +19,11 @@ from iopaint.schema import InpaintRequest, ModelType
 class SD(DiffusionInpaintModel):
     pad_mod = 8
     min_size = 512
-    lcm_lora_id = "latent-consistency/lcm-lora-sdv1-5"
+
+    def __init__(self, device, **kwargs):
+        from iopaint.config import get_config
+        self.lcm_lora_id = get_config().lcm_lora_models.get("sd1.5", "latent-consistency/lcm-lora-sdv1-5")
+        super().__init__(device, **kwargs)
 
     @classmethod
     def get_shared_components(cls) -> List[str]:

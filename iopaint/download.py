@@ -432,9 +432,11 @@ def scan_plugin_models() -> List[ModelInfo]:
 def download_curated_models():
     """Auto-download curated models if they are not present."""
     import torch
+    from iopaint.config import get_config
+    config = get_config()
     logger.info("Checking and downloading curated models...")
     
-    for model_name in CURATED_MODELS:
+    for model_name in config.curated_models:
         try:
             if model_name == "lama":
                 from iopaint.model.lama import LaMa
@@ -455,15 +457,9 @@ def download_curated_models():
             logger.warning(f"Failed to auto-download {model_name}: {e}")
 
 
-CURATED_MODELS = [
-    "lama", 
-    "u2net", 
-    "birefnet-general-lite", 
-    "mobile_sam", 
-    "sam2_tiny",
-]
-
 def scan_models() -> List[ModelInfo]:
+    from iopaint.config import get_config
+    config = get_config()
     model_dir = Path(os.getenv("XDG_CACHE_HOME", DEFAULT_MODEL_DIR))
     all_models = []
     all_models.extend(scan_inpaint_models(model_dir))
@@ -473,7 +469,7 @@ def scan_models() -> List[ModelInfo]:
     all_models.extend(scan_plugin_models())
 
     # Filter by curated list
-    available_models = [m for m in all_models if m.name in CURATED_MODELS]
+    available_models = [m for m in all_models if m.name in config.curated_models]
 
     # Ensure LaMa is always available (even if not downloaded)
     if not any(m.name == "lama" for m in available_models):

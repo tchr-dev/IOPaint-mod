@@ -13,42 +13,31 @@ from iopaint.helper import (
 )
 from iopaint.schema import InpaintRequest
 from .base import InpaintModel
-
-LAMA_MODEL_URL = os.environ.get(
-    "LAMA_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/add_big_lama/big-lama.pt",
-)
-LAMA_MODEL_MD5 = os.environ.get("LAMA_MODEL_MD5", "e3aa4aaa15225a33ec84f9f4bc47e500")
-
-ANIME_LAMA_MODEL_URL = os.environ.get(
-    "ANIME_LAMA_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/AnimeMangaInpainting/anime-manga-big-lama.pt",
-)
-ANIME_LAMA_MODEL_MD5 = os.environ.get(
-    "ANIME_LAMA_MODEL_MD5", "29f284f36a0a510bcacf39ecf4c4d54f"
-)
+from .manifest import get_manifest
 
 
 class LaMa(InpaintModel):
-    name = "lama"
-    pad_mod = 8
-    is_erase_model = True
-    supported_devices: List[str] = ["cuda", "cpu"]
-
-    # Version metadata for update checking
-    VERSION = "1.0.0"
-    VERSION_URL = "https://api.github.com/repos/Sanster/models/releases/latest"
+    def __init__(self, device, **kwargs):
+        self.manifest = get_manifest("lama")
+        self.name = self.manifest.name
+        self.is_erase_model = self.manifest.is_erase_model
+        self.supported_devices = self.manifest.supported_devices
+        self.VERSION = self.manifest.version
+        self.VERSION_URL = self.manifest.version_url
+        super().__init__(device, **kwargs)
 
     @staticmethod
     def download():
-        download_model(LAMA_MODEL_URL, LAMA_MODEL_MD5)
+        manifest = get_manifest("lama")
+        download_model(manifest.url, manifest.md5)
 
     def init_model(self, device, **kwargs):
-        self.model = load_jit_model(LAMA_MODEL_URL, device, LAMA_MODEL_MD5).eval()
+        self.model = load_jit_model(self.manifest.url, device, self.manifest.md5).eval()
 
     @staticmethod
     def is_downloaded() -> bool:
-        return os.path.exists(get_cache_path_by_url(LAMA_MODEL_URL))
+        manifest = get_manifest("lama")
+        return os.path.exists(get_cache_path_by_url(manifest.url))
 
     def forward(self, image, mask, config: InpaintRequest):
         """Input image and output image have same size
@@ -72,20 +61,29 @@ class LaMa(InpaintModel):
 
 
 class AnimeLaMa(LaMa):
-    name = "anime-lama"
-    VERSION = "1.0.0"
-    VERSION_URL = "https://api.github.com/repos/Sanster/models/releases/latest"
-    supported_devices: List[str] = ["cuda", "cpu"]
+    def __init__(self, device, **kwargs):
+        self.manifest = get_manifest("anime-lama")
+        self.name = self.manifest.name
+        self.is_erase_model = self.manifest.is_erase_model
+        self.supported_devices = self.manifest.supported_devices
+        self.VERSION = self.manifest.version
+        self.VERSION_URL = self.manifest.version_url
+        # Skip LaMa.__init__ and call InpaintModel.__init__ directly or let super() handle it
+        # Actually LaMa.__init__ does what we need but with "lama" manifest.
+        # So we just need to set our manifest before calling super.
+        super(LaMa, self).__init__(device, **kwargs)
 
     @staticmethod
     def download():
-        download_model(ANIME_LAMA_MODEL_URL, ANIME_LAMA_MODEL_MD5)
+        manifest = get_manifest("anime-lama")
+        download_model(manifest.url, manifest.md5)
 
     def init_model(self, device, **kwargs):
         self.model = load_jit_model(
-            ANIME_LAMA_MODEL_URL, device, ANIME_LAMA_MODEL_MD5
+            self.manifest.url, device, self.manifest.md5
         ).eval()
 
     @staticmethod
     def is_downloaded() -> bool:
-        return os.path.exists(get_cache_path_by_url(ANIME_LAMA_MODEL_URL))
+        manifest = get_manifest("anime-lama")
+        return os.path.exists(get_cache_path_by_url(manifest.url))

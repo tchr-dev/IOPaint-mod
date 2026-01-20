@@ -12,48 +12,46 @@ from .base import InpaintModel
 from iopaint.schema import InpaintRequest
 
 
-MANGA_INPAINTOR_MODEL_URL = os.environ.get(
-    "MANGA_INPAINTOR_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/manga/manga_inpaintor.jit",
-)
-MANGA_INPAINTOR_MODEL_MD5 = os.environ.get(
-    "MANGA_INPAINTOR_MODEL_MD5", "7d8b269c4613b6b3768af714610da86c"
-)
-
-MANGA_LINE_MODEL_URL = os.environ.get(
-    "MANGA_LINE_MODEL_URL",
-    "https://github.com/Sanster/models/releases/download/manga/erika.jit",
-)
-MANGA_LINE_MODEL_MD5 = os.environ.get(
-    "MANGA_LINE_MODEL_MD5", "0c926d5a4af8450b0d00bc5b9a095644"
-)
+from .manifest import get_manifest
 
 
 class Manga(InpaintModel):
-    name = "manga"
-    pad_mod = 16
-    is_erase_model = True
-    supported_devices = ["cuda", "cpu"]
+    def __init__(self, device, **kwargs):
+        self.manifest = get_manifest("manga")
+        self.name = self.manifest.name
+        self.is_erase_model = self.manifest.is_erase_model
+        self.supported_devices = self.manifest.supported_devices
+        self.VERSION = self.manifest.version
+        self.VERSION_URL = self.manifest.version_url
+        super().__init__(device, **kwargs)
+        self.pad_mod = 16
+        self.seed = 42
 
     def init_model(self, device, **kwargs):
         self.inpaintor_model = load_jit_model(
-            MANGA_INPAINTOR_MODEL_URL, device, MANGA_INPAINTOR_MODEL_MD5
+            self.manifest.url, device, self.manifest.md5
         )
         self.line_model = load_jit_model(
-            MANGA_LINE_MODEL_URL, device, MANGA_LINE_MODEL_MD5
+            self.manifest.extra_models["line"]["url"],
+            device,
+            self.manifest.extra_models["line"]["md5"],
         )
-        self.seed = 42
 
     @staticmethod
     def download():
-        download_model(MANGA_INPAINTOR_MODEL_URL, MANGA_INPAINTOR_MODEL_MD5)
-        download_model(MANGA_LINE_MODEL_URL, MANGA_LINE_MODEL_MD5)
+        manifest = get_manifest("manga")
+        download_model(manifest.url, manifest.md5)
+        download_model(
+            manifest.extra_models["line"]["url"],
+            manifest.extra_models["line"]["md5"],
+        )
 
     @staticmethod
     def is_downloaded() -> bool:
+        manifest = get_manifest("manga")
         model_paths = [
-            get_cache_path_by_url(MANGA_INPAINTOR_MODEL_URL),
-            get_cache_path_by_url(MANGA_LINE_MODEL_URL),
+            get_cache_path_by_url(manifest.url),
+            get_cache_path_by_url(manifest.extra_models["line"]["url"]),
         ]
         return all([os.path.exists(it) for it in model_paths])
 

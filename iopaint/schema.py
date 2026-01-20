@@ -40,6 +40,11 @@ class ModelInfo(BaseModel):
     @computed_field
     @property
     def need_prompt(self) -> bool:
+        from iopaint.model.manifest import get_manifest
+        manifest = get_manifest(self.name)
+        if manifest and manifest.need_prompt:
+            return True
+
         return self.model_type in [
             ModelType.DIFFUSERS_SD,
             ModelType.DIFFUSERS_SDXL,
@@ -55,32 +60,56 @@ class ModelInfo(BaseModel):
     @computed_field
     @property
     def controlnets(self) -> List[str]:
+        from iopaint.config import get_config
+        from iopaint.model.manifest import get_manifest
+        manifest = get_manifest(self.name)
+        if manifest and manifest.support_controlnet:
+            # If manifest says it supports controlnet but doesn't specify which ones,
+            # we use the defaults based on name/type below
+            pass
+        elif manifest and not manifest.support_controlnet:
+            # If manifest explicitly says it DOES NOT support controlnet
+            return []
+
+        config = get_config()
         if self.model_type in [
             ModelType.DIFFUSERS_SDXL,
             ModelType.DIFFUSERS_SDXL_INPAINT,
         ]:
-            return SDXL_CONTROLNET_CHOICES
+            return config.controlnet_models.get("sdxl", [])
         if self.model_type in [ModelType.DIFFUSERS_SD, ModelType.DIFFUSERS_SD_INPAINT]:
             if "sd2" in self.name.lower():
-                return SD2_CONTROLNET_CHOICES
+                return config.controlnet_models.get("sd2", [])
             else:
-                return SD_CONTROLNET_CHOICES
+                return config.controlnet_models.get("sd1.5", [])
         if self.name == POWERPAINT_NAME:
-            return SD_CONTROLNET_CHOICES
+            return config.controlnet_models.get("sd1.5", [])
         return []
 
     @computed_field
     @property
     def brushnets(self) -> List[str]:
+        from iopaint.config import get_config
+        from iopaint.model.manifest import get_manifest
+        manifest = get_manifest(self.name)
+        if manifest and not manifest.support_brushnet:
+            return []
+
+        config = get_config()
         if self.model_type in [ModelType.DIFFUSERS_SD]:
-            return SD_BRUSHNET_CHOICES
+            return config.brushnet_models.get("sd1.5", [])
         if self.model_type in [ModelType.DIFFUSERS_SDXL]:
-            return SDXL_BRUSHNET_CHOICES
+            return config.brushnet_models.get("sdxl", [])
         return []
 
     @computed_field
     @property
     def support_strength(self) -> bool:
+        from iopaint.model.manifest import get_manifest
+        manifest = get_manifest(self.name)
+        if manifest and manifest.support_strength:
+            return True
+
         return self.model_type in [
             ModelType.DIFFUSERS_SD,
             ModelType.DIFFUSERS_SDXL,
@@ -91,6 +120,11 @@ class ModelInfo(BaseModel):
     @computed_field
     @property
     def support_outpainting(self) -> bool:
+        from iopaint.model.manifest import get_manifest
+        manifest = get_manifest(self.name)
+        if manifest and manifest.support_outpainting:
+            return True
+
         return self.model_type in [
             ModelType.DIFFUSERS_SD,
             ModelType.DIFFUSERS_SDXL,
@@ -101,6 +135,11 @@ class ModelInfo(BaseModel):
     @computed_field
     @property
     def support_lcm_lora(self) -> bool:
+        from iopaint.model.manifest import get_manifest
+        manifest = get_manifest(self.name)
+        if manifest and manifest.support_lcm_lora:
+            return True
+
         return self.model_type in [
             ModelType.DIFFUSERS_SD,
             ModelType.DIFFUSERS_SDXL,
@@ -111,6 +150,11 @@ class ModelInfo(BaseModel):
     @computed_field
     @property
     def support_controlnet(self) -> bool:
+        from iopaint.model.manifest import get_manifest
+        manifest = get_manifest(self.name)
+        if manifest and manifest.support_controlnet:
+            return True
+
         return self.model_type in [
             ModelType.DIFFUSERS_SD,
             ModelType.DIFFUSERS_SDXL,
@@ -121,6 +165,11 @@ class ModelInfo(BaseModel):
     @computed_field
     @property
     def support_brushnet(self) -> bool:
+        from iopaint.model.manifest import get_manifest
+        manifest = get_manifest(self.name)
+        if manifest and manifest.support_brushnet:
+            return True
+
         return self.model_type in [
             ModelType.DIFFUSERS_SD,
             ModelType.DIFFUSERS_SDXL,
@@ -204,6 +253,53 @@ class PluginInfo(BaseModel):
 class CV2Flag(str, Enum):
     INPAINT_NS = "INPAINT_NS"
     INPAINT_TELEA = "INPAINT_TELEA"
+
+
+class ModelManifest(BaseModel):
+    name: str
+    url: str
+    md5: str
+    version: str
+    version_url: Optional[str] = None
+    is_erase_model: bool = False
+    supported_devices: List[str] = ["cuda", "cpu", "mps"]
+    need_prompt: bool = False
+    support_strength: bool = False
+    support_outpainting: bool = False
+    support_controlnet: bool = False
+    support_brushnet: bool = False
+    support_lcm_lora: bool = False
+    extra_models: Dict[str, Dict[str, str]] = {}  # For models with multiple files like ZITS
+
+
+class ServerSettings(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 8080
+    device: Device = Device.cpu
+    model_dir: Optional[str] = None
+    no_half: bool = False
+    low_mem: bool = False
+    cpu_offload: bool = False
+    disable_nsfw_checker: bool = False
+    local_files_only: bool = False
+    cpu_textencoder: bool = False
+    quality: int = 95
+    inbrowser: bool = False
+
+
+class GlobalConfig(BaseModel):
+    server: ServerSettings = ServerSettings()
+    models: List[ModelManifest] = []
+    plugins: PluginSettings = PluginSettings()
+    diffusion_models: List[str] = []
+    controlnet_models: Dict[str, List[str]] = {}
+    brushnet_models: Dict[str, List[str]] = {}
+    curated_models: List[str] = ["lama", "u2net", "birefnet-general-lite", "mobile_sam", "sam2_tiny"]
+    lcm_lora_models: Dict[str, str] = {
+        "sd1.5": "latent-consistency/lcm-lora-sdv1-5",
+        "sdxl": "latent-consistency/lcm-lora-sdxl"
+    }
+
 
 
 class HDStrategy(str, Enum):
